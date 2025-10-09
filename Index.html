@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestão de Clientes - Sorria Contabilidade</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome para ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- CSS customizado -->
+  <?!= include('Stylesheet'); ?>
+</head>
+<body class="bg-gray-50 font-sans">
+ 
+  <!-- Overlay de Carregamento -->
+<div id="loading-overlay" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
+  <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+  <style>
+    .loader {
+      border-top-color: #3498db;
+      -webkit-animation: spinner 1.5s linear infinite;
+      animation: spinner 1.5s linear infinite;
+    }
+
+    @-webkit-keyframes spinner {
+      0% { -webkit-transform: rotate(0deg); }
+      100% { -webkit-transform: rotate(360deg); }
+    }
+
+    @keyframes spinner {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</div>
+
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center">
+          <i class="fas fa-calculator text-blue-600 text-2xl mr-3"></i>
+          <h1 class="text-2xl font-bold text-gray-900">Sorria Contabilidade</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <span class="text-sm text-gray-600">Sistema de Gestão de Clientes</span>
+          <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+            <i class="fas fa-user text-white text-sm"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex space-x-8">
+        <button onclick="showSection('dashboard')" class="nav-btn active py-4 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm">
+          <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
+        </button>
+        <button onclick="showSection('clientes')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-users mr-2"></i>Clientes
+        </button>
+        <button onclick="showSection('fiscal')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-file-invoice-dollar mr-2"></i>Fiscal
+        </button>
+        <button onclick="showSection('dp')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-user-tie mr-2"></i>Departamento Pessoal
+        </button>
+        <button onclick="showSection('senhas')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-key mr-2"></i>Senhas
+        </button>
+        <button onclick="showSection('carneleao')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-receipt mr-2"></i>Carnê Leão
+        </button>
+        <button onclick="showSection('parcelamentos')" class="nav-btn py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+          <i class="fas fa-credit-card mr-2"></i>Parcelamentos
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+    
+    <!-- Dashboard Section -->
+    <div id="dashboard-section" class="section active">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Dashboard</h2>
+        <p class="text-gray-600">Visão geral do sistema de gestão de clientes</p>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+          <div class="p-5">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <i class="fas fa-users text-blue-600 text-2xl"></i>
+              </div>
+              <div class="ml-5 w-0 flex-1">
+                <dl>
+                  <dt class="text-sm font-medium text-gray-500 truncate">Total de Clientes</dt>
+                  <dd class="text-lg font-medium text-gray-900" id="total-clientes">-</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+          <div class="p-5">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+              </div>
+              <div class="ml-5 w-0 flex-1">
+                <dl>
+                  <dt class="text-sm font-medium text-gray-500 truncate">Clientes Ativos</dt>
+                  <dd class="text-lg font-medium text-gray-900" id="active-clientes">-</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white overflow-hidden shadow rounded-lg">
+          <div class="p-5">
+            <div class="flex items-center">
+              <div class="flex-shrink-0">
+                <i class="fas fa-pause-circle text-yellow-600 text-2xl"></i>
+              </div>
+              <div class="ml-5 w-0 flex-1">
+                <dl>
+                  <dt class="text-sm font-medium text-gray-500 truncate">Clientes Inativos</dt>
+                  <dd class="text-lg font-medium text-gray-900" id="inactive-clientes">-</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Atividade Recente</h3>
+          <div class="text-sm text-gray-500">
+            <p>Sistema carregado com sucesso. Use a navegação acima para acessar as diferentes seções.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clientes Section -->
+    <div id="clientes-section" class="section">
+      <div class="mb-8 flex justify-between items-center">
+        <div>
+          <h2 class="text-3xl font-bold text-gray-900 mb-2">Gestão de Clientes</h2>
+          <p class="text-gray-600">Visualize e gerencie informações dos clientes</p>
+        </div>
+        <button onclick="showAddClienteModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+          <i class="fas fa-plus mr-2"></i>Novo Cliente
+        </button>
+      </div>
+
+      <!-- Search and Filters -->
+      <div class="bg-white p-4 rounded-lg shadow mb-6">
+        <div class="flex flex-col sm:flex-row gap-4">
+          <div class="flex-1">
+            <input type="text" id="cliente-search" placeholder="Buscar por razão social ou CPF/CNPJ..." 
+                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div class="sm:w-48">
+            <select id="situacao-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Todas as Situações</option>
+              <option value="Ativo">Ativo</option>
+              <option value="Inativo">Inativo</option>
+            </select>
+          </div>
+          <div class="sm:w-48">
+            <select id="squad-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Todas as Squads</option>
+              <option value="SORRIA">SORRIA</option>
+              <option value="MEDIC">MEDIC</option>
+            </select>
+          </div>
+          <button onclick="filterClientes()" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg">
+            <i class="fas fa-search mr-2"></i>Filtrar
+          </button>
+        </div>
+      </div>
+
+      <!-- Clientes Table -->
+      <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPF/CNPJ</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Município</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Squad</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsável</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="clientes-table-body" class="bg-white divide-y divide-gray-200">
+                <!-- Dados serão carregados via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fiscal Section -->
+    <div id="fiscal-section" class="section">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Informações Fiscais</h2>
+        <p class="text-gray-600">Gerencie dados fiscais e tributários dos clientes</p>
+      </div>
+      
+      <div id="fiscal-content" class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <p class="text-gray-500">Selecione um cliente na seção "Clientes" para visualizar suas informações fiscais.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- DP Section -->
+    <div id="dp-section" class="section">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Departamento Pessoal</h2>
+        <p class="text-gray-600">Gerencie informações de RH e folha de pagamento</p>
+      </div>
+      
+      <div id="dp-content" class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <p class="text-gray-500">Selecione um cliente na seção "Clientes" para visualizar suas informações de DP.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Senhas Section -->
+    <div id="senhas-section" class="section">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Gestão de Senhas</h2>
+        <p class="text-gray-600">Gerencie senhas e acessos dos clientes</p>
+      </div>
+      
+      <div id="senhas-content" class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <p class="text-gray-500">Selecione um cliente na seção "Clientes" para visualizar suas senhas.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Carnê Leão Section -->
+    <div id="carneleao-section" class="section">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Carnê Leão</h2>
+        <p class="text-gray-600">Gerencie informações de Carnê Leão dos clientes</p>
+      </div>
+      
+      <div id="carneleao-content" class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <p class="text-gray-500">Selecione um cliente na seção "Clientes" para visualizar suas informações de Carnê Leão.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parcelamentos Section -->
+    <div id="parcelamentos-section" class="section">
+      <div class="mb-8">
+        <h2 class="text-3xl font-bold text-gray-900 mb-2">Parcelamentos</h2>
+        <p class="text-gray-600">Gerencie parcelamentos e débitos dos clientes</p>
+      </div>
+      
+      <div id="parcelamentos-content" class="bg-white shadow rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+          <p class="text-gray-500">Selecione um cliente na seção "Clientes" para visualizar seus parcelamentos.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Modal para Adicionar Cliente -->
+  <div id="add-cliente-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-gray-900">Novo Cliente</h3>
+          <button onclick="hideAddClienteModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <form id="add-cliente-form" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Razão Social</label>
+            <input type="text" id="razao_social" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">CPF/CNPJ</label>
+            <input type="text" id="cpf_cnpj" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Constituição</label>
+            <input type="text" id="constituicao" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Município</label>
+            <input type="text" id="municipio" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Squad</label>
+            <select id="squad" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">Selecione uma squad</option>
+              <option value="SORRIA">SORRIA</option>
+              <option value="MEDIC">MEDIC</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Responsável</label>
+            <input type="text" id="responsavel" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+          <div class="flex justify-end space-x-3 pt-4">
+            <button type="button" onclick="hideAddClienteModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+              Cancelar
+            </button>
+            <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+              Salvar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para Visualizar Cliente -->
+  <div id="view-cliente-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+    <div class="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
+      <div class="mt-3">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-medium text-gray-900" id="view-cliente-title">Detalhes do Cliente</h3>
+          <button onclick="hideViewClienteModal()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        
+        <div id="view-cliente-content" class="space-y-6">
+          <!-- Conteúdo será carregado dinamicamente -->
+        </div>
+        
+        <div class="flex justify-end pt-4">
+          <button onclick="hideViewClienteModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Spinner -->
+  <div id="loading-spinner" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+      <div class="flex items-center">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+        <span class="text-gray-700">Carregando...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <?!= include('Javascript'); ?>
+</body>
+</html>

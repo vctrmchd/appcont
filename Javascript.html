@@ -1,0 +1,879 @@
+<script>
+    /**
+     * JavaScript do lado do cliente para o aplicativo de Gestão de Clientes
+     * Sorria Contabilidade (Versão Atualizada)
+     */
+    
+    // Variáveis globais
+    let currentClientes = [];
+    let currentSection = 'dashboard';
+    let selectedClienteId = null;
+    
+    // Inicialização do aplicativo
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('Aplicativo carregado');
+      loadDashboardData();
+      loadClientes();
+    });
+    
+    // ==================== NAVEGAÇÃO ====================
+    
+    /**
+     * Mostra uma seção específica e esconde as outras
+     * @param {string} sectionName - Nome da seção a ser mostrada
+     */
+    function showSection(sectionName) {
+      // Esconde todas as seções
+      const sections = document.querySelectorAll('.section');
+      sections.forEach(section => {
+        section.classList.remove('active');
+      });
+      
+      // Remove classe active de todos os botões de navegação
+      const navButtons = document.querySelectorAll('.nav-btn');
+      navButtons.forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.add('border-transparent', 'text-gray-500');
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+      });
+      
+      // Mostra a seção selecionada
+      const targetSection = document.getElementById(sectionName + '-section');
+      if (targetSection) {
+        targetSection.classList.add('active');
+      }
+      
+      // Ativa o botão de navegação correspondente
+      const activeButton = event.target.closest('.nav-btn');
+      if (activeButton) {
+        activeButton.classList.add('active');
+        activeButton.classList.remove('border-transparent', 'text-gray-500');
+        activeButton.classList.add('border-blue-500', 'text-blue-600');
+      }
+      
+      currentSection = sectionName;
+      
+      // Carrega dados específicos da seção se necessário
+      if (sectionName === 'clientes') {
+        loadClientes();
+      } else if (sectionName === 'dashboard') {
+        loadDashboardData();
+      } else if (sectionName === 'fiscal') {
+        loadAllFiscalData();
+      } else if (sectionName === 'dp') {
+        loadAllDPData();
+      } else if (sectionName === 'senhas') {
+        loadAllSenhasData();
+      } else if (sectionName === 'carneleao') {
+        loadAllCarneLeaoData();
+      } else if (sectionName === 'parcelamentos') {
+        loadAllParcelamentosData();
+      }
+    }
+    
+    // ==================== DASHBOARD ====================
+    
+    /**
+     * Carrega dados do dashboard
+     */
+    function loadDashboardData() {
+      console.log("loadDashboardData: Iniciando carregamento de dados do dashboard.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(stats) {
+          console.log("loadDashboardData: Dados do dashboard recebidos com sucesso:", stats);
+          hideLoading();
+          updateDashboardStats(stats);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadDashboardData: Erro ao carregar estatísticas:", error);
+          hideLoading();
+          showNotification('Erro ao carregar estatísticas: ' + error.message, 'error');
+        })
+        .getSystemStats();
+    }
+    
+    /**
+     * Atualiza as estatísticas do dashboard
+     * @param {Object} stats - Objeto com as estatísticas
+     */
+    function updateDashboardStats(stats) {
+      document.getElementById('total-clientes').textContent = stats.totalClientes || 0;
+      document.getElementById('active-clientes').textContent = stats.activeClientes || 0;
+      document.getElementById('inactive-clientes').textContent = stats.inactiveClientes || 0;
+    }
+    
+    // ==================== GESTÃO DE CLIENTES ====================
+    
+    /**
+     * Carrega a lista de clientes
+     */
+    function loadClientes() {
+      console.log("loadClientes: Iniciando carregamento de clientes.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(clientes) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadClientes: Clientes recebidos com sucesso:", clientes);
+          hideLoading();
+          currentClientes = clientes || []; // Garante que currentClientes seja um array
+          displayClientes(currentClientes);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadClientes: Erro ao carregar clientes:", error);
+          hideLoading();
+          showNotification('Erro ao carregar clientes: ' + error.message, 'error');
+        })
+        .getClientes();
+    }
+    
+    /**
+     * Exibe a lista de clientes na tabela
+     * @param {Array} clientes - Array de objetos cliente
+     */
+    function displayClientes(clientes) {
+      console.log("displayClientes: Dados de clientes recebidos para exibição:", clientes);
+      const tbody = document.getElementById('clientes-table-body');
+      
+      if (!clientes || clientes.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+              Nenhum cliente encontrado
+            </td>
+          </tr>
+        `;
+        console.log("displayClientes: Nenhum cliente, HTML gerado:", tbody.innerHTML);
+        return;
+      }
+      
+      const generatedHtml = clientes.map(cliente => `
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">${cliente.razao_social || ''}</div>
+            <div class="text-sm text-gray-500">ID: ${cliente.cliente_id}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${cliente.cpf_cnpj || ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${cliente.municipio || ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="status-badge ${cliente.situacao === 'Ativo' ? 'status-active' : 'status-inactive'}">
+              ${cliente.situacao || 'N/A'}
+            </span>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${cliente.squad || ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${cliente.responsavel || ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button onclick="editCliente(${cliente.cliente_id})" class="text-blue-600 hover:text-blue-900 mr-3" title="Editar">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="viewClienteDetails(${cliente.cliente_id})" class="text-green-600 hover:text-green-900 mr-3" title="Visualizar">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button onclick="deleteCliente(${cliente.cliente_id})" class="text-red-600 hover:text-red-900" title="Excluir">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      tbody.innerHTML = generatedHtml;
+      console.log("displayClientes: HTML final gerado para clientes:", generatedHtml);
+    }
+    
+    /**
+     * Filtra clientes baseado nos critérios de busca
+     */
+    function filterClientes() {
+      const searchTerm = document.getElementById('cliente-search').value.toLowerCase();
+      const situacaoFilter = document.getElementById('situacao-filter').value;
+      const squadFilter = document.getElementById('squad-filter').value;
+      
+      let filteredClientes = currentClientes;
+      
+      // Filtro por texto de busca
+      if (searchTerm) {
+        filteredClientes = filteredClientes.filter(cliente => 
+          (cliente.razao_social && cliente.razao_social.toLowerCase().includes(searchTerm)) ||
+          (cliente.cpf_cnpj && cliente.cpf_cnpj.toLowerCase().includes(searchTerm))
+        );
+      }
+      
+      // Filtro por situação
+      if (situacaoFilter) {
+        filteredClientes = filteredClientes.filter(cliente => cliente.situacao === situacaoFilter);
+      }
+      
+      // Filtro por squad
+      if (squadFilter) {
+        filteredClientes = filteredClientes.filter(cliente => cliente.squad === squadFilter);
+      }
+      
+      displayClientes(filteredClientes);
+    }
+    
+    // ==================== SEÇÃO FISCAL ====================
+    
+    /**
+     * Carrega todos os dados fiscais
+     */
+    function loadAllFiscalData() {
+      console.log("loadAllFiscalData: Iniciando carregamento de dados fiscais.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(fiscalData) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadAllFiscalData: Dados fiscais recebidos com sucesso:", fiscalData);
+          hideLoading();
+          const fiscalDataWithClientNames = (fiscalData || []).map(fiscal => {
+            const cliente = currentClientes.find(c => c.cliente_id == fiscal.cliente_id);
+            return { ...fiscal, cliente_nome: cliente ? cliente.razao_social : 'N/A' };
+          });
+          displayFiscalData(fiscalDataWithClientNames);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadAllFiscalData: Erro ao carregar dados fiscais:", error);
+          hideLoading();
+          showNotification('Erro ao carregar dados fiscais: ' + error.message, 'error');
+        })
+        .getAllInformacoesFiscais();
+    }
+    
+    /**
+     * Exibe dados fiscais na seção
+     * @param {Array} fiscalData - Array de dados fiscais
+     */
+    function displayFiscalData(fiscalData) {
+      console.log('displayFiscalData: Dados fiscais recebidos para exibição:', fiscalData); 
+      const content = document.getElementById('fiscal-content');
+      
+      if (!fiscalData || fiscalData.length === 0) {
+        content.innerHTML = `
+          <div class="px-4 py-5 sm:p-6">
+            <p class="text-gray-500">Nenhuma informação fiscal encontrada.</p>
+          </div>
+        `;
+        console.log('displayFiscalData: Nenhum dado fiscal, HTML gerado:', content.innerHTML); 
+        return;
+      }
+      
+      const generatedHtml = `
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tributação</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Faturamento</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ISS</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Federal</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Municipal</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estadual</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${fiscalData.map(fiscal => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${fiscal.cliente_nome || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${fiscal.tributacao || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${formatCurrency(fiscal.faturamento)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${fiscal.iss || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${fiscal.federal || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${fiscal.municipal || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${fiscal.estadual || 'N/A'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      content.innerHTML = generatedHtml;
+      console.log('displayFiscalData: HTML final gerado para Fiscal:', generatedHtml);
+    }
+    
+    // ==================== SEÇÃO DP ====================
+    
+    /**
+     * Carrega todos os dados de DP
+     */
+    function loadAllDPData() {
+      console.log("loadAllDPData: Iniciando carregamento de dados de DP.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(dpData) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadAllDPData: Dados de DP recebidos com sucesso:", dpData);
+          hideLoading();
+          const dpDataWithClientNames = (dpData || []).map(dp => {
+            const cliente = currentClientes.find(c => c.cliente_id == dp.cliente_id);
+            return { ...dp, cliente_nome: cliente ? cliente.razao_social : 'N/A' };
+          });
+          displayDPData(dpDataWithClientNames);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadAllDPData: Erro ao carregar dados de DP:", error);
+          hideLoading();
+          showNotification('Erro ao carregar dados de DP: ' + error.message, 'error');
+        })
+        .getAllInformacoesDP();
+    }
+    
+    /**
+     * Exibe dados de DP na seção
+     * @param {Array} dpData - Array de dados de DP
+     */
+    function displayDPData(dpData) {
+      console.log('displayDPData: Dados de DP recebidos para exibição:', dpData);
+      const content = document.getElementById('dp-content');
+      
+      if (!dpData || dpData.length === 0) {
+        content.innerHTML = `
+          <div class="px-4 py-5 sm:p-6">
+            <p class="text-gray-500">Nenhuma informação de DP encontrada.</p>
+          </div>
+        `;
+        console.log('displayDPData: Nenhum dado de DP, HTML gerado:', content.innerHTML);
+        return;
+      }
+      
+      const generatedHtml = `
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Funcionários</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pró-Labore/INSS</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sindicato</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FGTS</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsável Envio</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${dpData.map(dp => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${dp.cliente_nome || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${dp.funcionarios || 0}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${formatCurrency(dp.pro_labore_inss_pf)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${dp.sindicato || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${dp.fgts_07_2025 || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${dp.responsavel_envio || 'N/A'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      content.innerHTML = generatedHtml;
+      console.log('displayDPData: HTML final gerado para DP:', generatedHtml);
+    }
+    
+    // ==================== SEÇÃO SENHAS ====================
+    
+    /**
+     * Carrega todos os dados de senhas
+     */
+    function loadAllSenhasData() {
+      console.log("loadAllSenhasData: Iniciando carregamento de dados de senhas.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(senhasData) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadAllSenhasData: Dados de senhas recebidos com sucesso:", senhasData);
+          hideLoading();
+          const senhasDataWithClientNames = (senhasData || []).map(senha => {
+            const cliente = currentClientes.find(c => c.cliente_id == senha.cliente_id);
+            return { ...senha, cliente_nome: cliente ? cliente.razao_social : 'N/A' };
+          });
+          displaySenhasData(senhasDataWithClientNames);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadAllSenhasData: Erro ao carregar dados de senhas:", error);
+          hideLoading();
+          showNotification('Erro ao carregar dados de senhas: ' + error.message, 'error');
+        })
+        .getAllSenhas();
+    }
+    
+    /**
+     * Exibe dados de senhas na seção
+     * @param {Array} senhasData - Array de dados de senhas
+     */
+    function displaySenhasData(senhasData) {
+      console.log('displaySenhasData: Dados de senhas recebidos para exibição:', senhasData);
+      const content = document.getElementById('senhas-content');
+      
+      if (!senhasData || senhasData.length === 0) {
+        content.innerHTML = `
+          <div class="px-4 py-5 sm:p-6">
+            <p class="text-gray-500">Nenhuma senha encontrada.</p>
+          </div>
+        `;
+        console.log('displaySenhasData: Nenhum dado de senhas, HTML gerado:', content.innerHTML);
+        return;
+      }
+      
+      const generatedHtml = `
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gerenciador</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Login</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Link de Acesso</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${senhasData.map(senha => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${senha.cliente_nome || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${senha.tipo_senha || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${senha.gerenciador || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${senha.login || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <a href="${senha.link_acesso}" target="_blank" class="text-blue-600 hover:text-blue-900">Acessar</a>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      content.innerHTML = generatedHtml;
+      console.log('displaySenhasData: HTML final gerado para Senhas:', generatedHtml);
+    }
+    
+    // ==================== SEÇÃO CARNÊ LEÃO ====================
+    
+    /**
+     * Carrega todos os dados de Carnê Leão
+     */
+    function loadAllCarneLeaoData() {
+      console.log("loadAllCarneLeaoData: Iniciando carregamento de dados de Carnê Leão.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(carneLeaoData) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadAllCarneLeaoData: Dados de Carnê Leão recebidos com sucesso:", carneLeaoData);
+          hideLoading();
+          const carneLeaoDataWithClientNames = (carneLeaoData || []).map(carne => {
+            const cliente = currentClientes.find(c => c.cliente_id == carne.cliente_id);
+            return { ...carne, cliente_nome: cliente ? cliente.razao_social : 'N/A' };
+          });
+          displayCarneLeaoData(carneLeaoDataWithClientNames);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadAllCarneLeaoData: Erro ao carregar dados de Carnê Leão:", error);
+          hideLoading();
+          showNotification('Erro ao carregar dados de Carnê Leão: ' + error.message, 'error');
+        })
+        .getAllCarneLeao();
+    }
+    
+    /**
+     * Exibe dados de Carnê Leão na seção
+     * @param {Array} carneLeaoData - Array de dados de Carnê Leão
+     */
+    function displayCarneLeaoData(carneLeaoData) {
+      console.log('displayCarneLeaoData: Dados de Carnê Leão recebidos para exibição:', carneLeaoData);
+      const content = document.getElementById('carneleao-content');
+      
+      if (!carneLeaoData || carneLeaoData.length === 0) {
+        content.innerHTML = `
+          <div class="px-4 py-5 sm:p-6">
+            <p class="text-gray-500">Nenhuma informação de Carnê Leão encontrada.</p>
+          </div>
+        `;
+        console.log('displayCarneLeaoData: Nenhum dado de Carnê Leão, HTML gerado:', content.innerHTML);
+        return;
+      }
+      
+      const generatedHtml = `
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mês/Ano</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Pagamento</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${carneLeaoData.map(carne => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${carne.cliente_nome || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${carne.mes_ano || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${formatCurrency(carne.valor)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${carne.data_pagamento || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${carne.situacao || 'N/A'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      content.innerHTML = generatedHtml;
+      console.log('displayCarneLeaoData: HTML final gerado para Carnê Leão:', generatedHtml);
+    }
+    
+    // ==================== SEÇÃO PARCELAMENTOS ====================
+    
+    /**
+     * Carrega todos os dados de parcelamentos
+     */
+    function loadAllParcelamentosData() {
+      console.log("loadAllParcelamentosData: Iniciando carregamento de dados de parcelamentos.");
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(function(parcelamentosData) {
+          // Removido JSON.parse, pois o backend agora retorna o objeto diretamente
+          console.log("loadAllParcelamentosData: Dados de parcelamentos recebidos com sucesso:", parcelamentosData);
+          hideLoading();
+          const parcelamentosDataWithClientNames = (parcelamentosData || []).map(parcelamento => {
+            const cliente = currentClientes.find(c => c.cliente_id == parcelamento.cliente_id);
+            return { ...parcelamento, cliente_nome: cliente ? cliente.razao_social : 'N/A' };
+          });
+          displayParcelamentosData(parcelamentosDataWithClientNames);
+        })
+        .withFailureHandler(function(error) {
+          console.error("loadAllParcelamentosData: Erro ao carregar dados de parcelamentos:", error);
+          hideLoading();
+          showNotification('Erro ao carregar dados de parcelamentos: ' + error.message, 'error');
+        })
+        .getAllParcelamentos();
+    }
+    
+    /**
+     * Exibe dados de parcelamentos na seção
+     * @param {Array} parcelamentosData - Array de dados de parcelamentos
+     */
+    function displayParcelamentosData(parcelamentosData) {
+      console.log('displayParcelamentosData: Dados de parcelamentos recebidos para exibição:', parcelamentosData);
+      const content = document.getElementById('parcelamentos-content');
+      
+      if (!parcelamentosData || parcelamentosData.length === 0) {
+        content.innerHTML = `
+          <div class="px-4 py-5 sm:p-6">
+            <p class="text-gray-500">Nenhum parcelamento encontrado.</p>
+          </div>
+        `;
+        console.log('displayParcelamentosData: Nenhum dado de parcelamentos, HTML gerado:', content.innerHTML);
+        return;
+      }
+      
+      const generatedHtml = `
+        <div class="px-4 py-5 sm:p-6">
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Órgão</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Total</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nº Parcelas</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${parcelamentosData.map(parcelamento => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${parcelamento.cliente_nome || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${parcelamento.orgao || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${formatCurrency(parcelamento.valor_total)}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${parcelamento.numero_parcelas || 'N/A'}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${parcelamento.situacao || 'N/A'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+      content.innerHTML = generatedHtml;
+      console.log('displayParcelamentosData: HTML final gerado para Parcelamentos:', generatedHtml);
+    }
+    
+    // ==================== FUNÇÕES DE UTILIDADE ====================
+    
+    /**
+     * Mostra o overlay de carregamento
+     */
+    function showLoading() {
+      const loadingOverlay = document.getElementById('loading-overlay');
+      if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+      }
+    }
+    
+    /**
+     * Esconde o overlay de carregamento
+     */
+    function hideLoading() {
+      const loadingOverlay = document.getElementById('loading-overlay');
+      if (loadingOverlay) {
+        loadingOverlay.classList.add('hidden');
+      }
+    }
+    
+    /**
+     * Exibe notificações para o usuário
+     * @param {string} message - Mensagem a ser exibida
+     * @param {string} type - Tipo da mensagem (success, error, info)
+     */
+    function showNotification(message, type) {
+      const notification = document.getElementById('notification');
+      const notificationText = document.getElementById('notification-text');
+      
+      if (notification && notificationText) {
+        notificationText.textContent = message;
+        notification.className = 'fixed bottom-4 right-4 p-4 rounded-lg shadow-lg text-white z-50 ';
+        
+        if (type === 'success') {
+          notification.classList.add('bg-green-500');
+        } else if (type === 'error') {
+          notification.classList.add('bg-red-500');
+        } else {
+          notification.classList.add('bg-blue-500');
+        }
+        
+        notification.classList.remove('hidden');
+        setTimeout(() => {
+          notification.classList.add('hidden');
+        }, 5000);
+      }
+    }
+    
+    /**
+     * Formata um valor numérico como moeda BRL
+     * @param {number} value - Valor a ser formatado
+     * @returns {string} Valor formatado como moeda
+     */
+    function formatCurrency(value) {
+      if (typeof value !== 'number') {
+        value = parseFloat(value) || 0;
+      }
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    }
+    
+    // ==================== FUNÇÕES DE MODAL ====================
+    
+    /**
+     * Abre um modal
+     * @param {string} modalId - ID do modal a ser aberto
+     */
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+    }
+    
+    /**
+     * Fecha um modal
+     * @param {string} modalId - ID do modal a ser fechado
+     */
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+    }
+    
+    // ==================== FUNÇÕES DE EDIÇÃO/VISUALIZAÇÃO ====================
+    
+    /**
+     * Preenche o formulário de edição de cliente com os dados do cliente selecionado
+     * @param {string} clienteId - ID do cliente a ser editado
+     */
+    function editCliente(clienteId) {
+      const cliente = currentClientes.find(c => c.cliente_id == clienteId);
+      if (cliente) {
+        document.getElementById('edit-cliente-id').value = cliente.cliente_id;
+        document.getElementById('edit-razao-social').value = cliente.razao_social;
+        document.getElementById('edit-cpf-cnpj').value = cliente.cpf_cnpj;
+        document.getElementById('edit-constituicao').value = cliente.constituicao;
+        document.getElementById('edit-municipio').value = cliente.municipio;
+        document.getElementById('edit-situacao').value = cliente.situacao;
+        document.getElementById('edit-squad').value = cliente.squad;
+        document.getElementById('edit-responsavel').value = cliente.responsavel;
+        document.getElementById('edit-data-entrada').value = cliente.data_entrada;
+        openModal('edit-cliente-modal');
+      }
+    }
+    
+    /**
+     * Salva as alterações de um cliente
+     */
+    function saveClienteChanges() {
+      const clienteId = document.getElementById('edit-cliente-id').value;
+      const updatedData = {
+        razao_social: document.getElementById('edit-razao-social').value,
+        cpf_cnpj: document.getElementById('edit-cpf-cnpj').value,
+        constituicao: document.getElementById('edit-constituicao').value,
+        municipio: document.getElementById('edit-municipio').value,
+        situacao: document.getElementById('edit-situacao').value,
+        squad: document.getElementById('edit-squad').value,
+        responsavel: document.getElementById('edit-responsavel').value,
+        data_entrada: document.getElementById('edit-data-entrada').value
+      };
+      
+      google.script.run
+        .withSuccessHandler(function(success) {
+          if (success) {
+            showNotification('Cliente atualizado com sucesso!', 'success');
+            closeModal('edit-cliente-modal');
+            loadClientes(); // Recarrega a lista de clientes
+          } else {
+            showNotification('Erro ao atualizar cliente.', 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Erro ao atualizar cliente: ' + error.message, 'error');
+        })
+        .updateCliente(clienteId, updatedData);
+    }
+    
+    /**
+     * Exclui um cliente
+     * @param {string} clienteId - ID do cliente a ser excluído
+     */
+    function deleteCliente(clienteId) {
+      if (confirm('Tem certeza que deseja excluir este cliente?')) {
+        google.script.run
+          .withSuccessHandler(function(success) {
+            if (success) {
+              showNotification('Cliente excluído com sucesso!', 'success');
+              loadClientes(); // Recarrega a lista de clientes
+            } else {
+              showNotification('Erro ao excluir cliente.', 'error');
+            }
+          })
+          .withFailureHandler(function(error) {
+            showNotification('Erro ao excluir cliente: ' + error.message, 'error');
+          })
+          .deleteCliente(clienteId);
+      }
+    }
+    
+    /**
+     * Adiciona um novo cliente
+     */
+    function addNewCliente() {
+      const newClienteData = {
+        razao_social: document.getElementById('new-razao-social').value,
+        cpf_cnpj: document.getElementById('new-cpf-cnpj').value,
+        constituicao: document.getElementById('new-constituicao').value,
+        municipio: document.getElementById('new-municipio').value,
+        situacao: document.getElementById('new-situacao').value,
+        squad: document.getElementById('new-squad').value,
+        responsavel: document.getElementById('new-responsavel').value,
+        data_entrada: document.getElementById('new-data-entrada').value
+      };
+      
+      google.script.run
+        .withSuccessHandler(function(success) {
+          if (success) {
+            showNotification('Cliente adicionado com sucesso!', 'success');
+            closeModal('add-cliente-modal');
+            loadClientes(); // Recarrega a lista de clientes
+          } else {
+            showNotification('Erro ao adicionar cliente.', 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          showNotification('Erro ao adicionar cliente: ' + error.message, 'error');
+        })
+        .addCliente(newClienteData);
+    }
+    
+    /**
+     * Visualiza detalhes do cliente (exemplo simples, pode ser expandido)
+     * @param {string} clienteId - ID do cliente a ser visualizado
+     */
+    function viewClienteDetails(clienteId) {
+      const cliente = currentClientes.find(c => c.cliente_id == clienteId);
+      if (cliente) {
+        alert(`Detalhes do Cliente:\nID: ${cliente.cliente_id}\nRazão Social: ${cliente.razao_social}\nSituação: ${cliente.situacao}`);
+      }
+    }
+    
+    </script>
