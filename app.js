@@ -32,6 +32,9 @@ document.addEventListener('DOMContentLoaded', function() {
   // Inicializar selects
   M.FormSelect.init(document.querySelectorAll('select'));
   
+  // Aplicar máscaras
+  aplicarMascaraCpfCnpj();
+  
   loadUser();
   showDashboard();
 });
@@ -209,7 +212,7 @@ async function loadDashboardStats() {
 }
 
 // ========================================
-// CLIENTES - CRUD COMPLETO
+// CLIENTES
 // ========================================
 async function loadClientes() {
   try {
@@ -342,6 +345,395 @@ async function editCliente(id_cliente) {
     console.error('❌ Erro ao carregar cliente para edição:', error);
     M.toast({html: 'Erro ao carregar cliente', classes: 'red'});
   }
+}
+
+// Visualizar cliente
+async function viewCliente(id_cliente) {
+  try {
+    console.log(`👁️ Visualizando cliente ${id_cliente}`);
+    
+    const { data, error } = await supabaseClient
+      .from('clientes')
+      .select('*')
+      .eq('id_cliente', id_cliente)
+      .single();
+    
+    if (error) throw error;
+    
+    // Montar HTML com detalhes
+    const detalhesHtml = `
+      <div class="row">
+        <div class="col s12">
+          <h5>${data.razao_social}</h5>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col s12 m6">
+          <p><strong>Código:</strong> ${data.id_cliente}</p>
+          <p><strong>CPF/CNPJ:</strong> ${data.cpf_cnpj || '-'}</p>
+          <p><strong>Município:</strong> ${data.municipio || '-'}</p>
+          <p><strong>Situação:</strong> ${data.situacao || '-'}</p>
+        </div>
+        <div class="col s12 m6">
+          <p><strong>Empresa Responsável:</strong> ${data.empresa_responsavel || '-'}</p>
+          <p><strong>Squad:</strong> ${data.squad || '-'}</p>
+          <p><strong>Regime de Tributação:</strong> ${data.regime_tributacao || '-'}</p>
+          <p><strong>Faturamento:</strong> ${data.faturamento ? 'R$ ' + parseFloat(data.faturamento).toLocaleString('pt-BR', {minimumFractionDigits: 2}) : '-'}</p>
+        </div>
+      </div>
+      
+      <div class="row">
+        <div class="col s12 m4">
+          <p><strong>Data de Entrada:</strong> ${data.data_entrada ? new Date(data.data_entrada).toLocaleDateString('pt-BR') : '-'}</p>
+        </div>
+        <div class="col s12 m4">
+          <p><strong>Data de Constituição:</strong> ${data.data_constituicao ? new Date(data.data_constituicao).toLocaleDateString('pt-BR') : '-'}</p>
+        </div>
+        <div class="col s12 m4">
+          <p><strong>Última Consulta Fiscal:</strong> ${data.ultima_consulta_fiscal ? new Date(data.ultima_consulta_fiscal).toLocaleDateString('pt-BR') : '-'}</p>
+        </div>
+      </div>
+      
+      ${data.observacoes ? `
+      <div class="row">
+        <div class="col s12">
+          <p><strong>Observações:</strong></p>
+          <p>${data.observacoes}</p>
+        </div>
+      </div>
+      ` : ''}
+    `;
+    
+    document.getElementById('clienteDetalhes').innerHTML = detalhesHtml;
+    
+    if (viewClienteModalInstance) {
+      viewClienteModalInstance.open();
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao visualizar cliente:', error);
+    M.toast({html: 'Erro ao carregar detalhes do cliente', classes: 'red'});
+  }
+}
+
+// Deletar cliente
+async function deleteCliente(id_cliente) {
+  if (!confirm('Tem certeza que deseja deletar este cliente? Esta ação não pode ser desfeita.')) {
+    console.log('❌ Deleção cancelada pelo usuário');
+    return;
+  }
+  
+  try {
+    console.log(`🗑️ Deletando cliente ${id_cliente}...`);
+    
+    // Buscar nome do cliente antes de deletar
+    const { data: clienteData } = await supabaseClient
+      .from('clientes')
+      .select('razao_social')
+      .eq('id_cliente', id_cliente)
+      .single();
+    
+    const nomeCliente = clienteData ? clienteData.razao_social : `ID ${id_cliente}`;
+    
+    // Deletar cliente
+    const { error } = await supabaseClient
+      .from('clientes')
+      .delete()
+      .eq('id_cliente', id_cliente);
+    
+    if (error) throw error;
+    
+    console.log('✅ Cliente deletado com sucesso');
+    M.toast({html: 'Cliente deletado com sucesso!', classes: 'green'});
+    
+    // Registrar na auditoria
+    await logAuditoria('CLIENTE_DELETADO', id_cliente, `Cliente ${nomeCliente} deletado`);
+    
+    // Recarregar lista
+    loadClientes();
+    
+  } catch (error) {
+    console.error('❌ Erro ao deletar cliente:', error);
+    M.toast({html: 'Erro ao deletar cliente', classes: 'red'});
+  }
+}
+
+// Resetar formulário
+function resetClienteForm() {
+  console.log('🔄 Resetando formulário de cliente');
+  
+  const form = document.getElementById('clienteForm');
+  if (form) {
+    form.reset();
+  }
+  
+  document.getElementById('cliente_id').value = '';
+  editingClienteId = null;
+  
+  // Reinicializar Materialize
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('select'));
+    M.updateTextFields();
+  }, 100);
+}
+
+// Salvar cliente (criar ou editar)
+async function salvarCliente() {
+  try {
+    console.log('💾 Salvando cliente...');
+    
+    // Validar formulário
+    const erros = validarFormularioCliente();
+    if (erros.length > 0) {
+      M.toast({html: `Erros: ${erros.join(', ')}`, classes: 'red', displayLength: 6000});
+      return;
+    }
+    
+    // Coletar dados do formulário
+    const clienteData = {
+      empresa_responsavel: document.getElementById('empresa_responsavel').value.trim(),
+      squad: document.getElementById('squad').value.trim(),
+      razao_social: document.getElementById('razao_social').value.trim(),
+      cpf_cnpj: formatarCpfCnpj(document.getElementById('cpf_cnpj').value.trim()),
+      municipio: document.getElementById('municipio').value.trim(),
+      situacao: document.getElementById('situacao').value.trim(),
+      regime_tributacao: document.getElementById('regime_tributacao').value.trim() || null,
+      faturamento: document.getElementById('faturamento').value ? parseFloat(document.getElementById('faturamento').value) : null,
+      data_entrada: document.getElementById('data_entrada').value || null,
+      data_constituicao: document.getElementById('data_constituicao').value || null,
+      ultima_consulta_fiscal: document.getElementById('ultima_consulta_fiscal').value || null,
+      observacoes: document.getElementById('observacoes').value.trim() || null
+    };
+    
+    let result;
+    let acao;
+    
+    if (editingClienteId) {
+      // EDITAR cliente existente
+      console.log(`📝 Editando cliente ID ${editingClienteId}`);
+      
+      result = await supabaseClient
+        .from('clientes')
+        .update(clienteData)
+        .eq('id_cliente', editingClienteId);
+      
+      acao = 'CLIENTE_EDITADO';
+      
+      if (result.error) throw result.error;
+      
+      M.toast({html: 'Cliente atualizado com sucesso!', classes: 'green'});
+      console.log('✅ Cliente editado com sucesso');
+      
+    } else {
+      // CRIAR novo cliente
+      console.log('➕ Criando novo cliente');
+      
+      result = await supabaseClient
+        .from('clientes')
+        .insert([clienteData])
+        .select();
+      
+      acao = 'CLIENTE_CRIADO';
+      
+      if (result.error) throw result.error;
+      
+      M.toast({html: 'Cliente cadastrado com sucesso!', classes: 'green'});
+      console.log('✅ Cliente criado com sucesso');
+    }
+    
+    // Registrar na auditoria
+    const idCliente = editingClienteId || (result.data && result.data[0] ? result.data[0].id_cliente : null);
+    await logAuditoria(acao, idCliente, `Cliente ${clienteData.razao_social} - ${acao.toLowerCase().replace('_', ' ')}`);
+    
+    // Fechar modal e recarregar lista
+    if (clienteModalInstance) {
+      clienteModalInstance.close();
+    }
+    
+    loadClientes();
+    
+  } catch (error) {
+    console.error('❌ Erro ao salvar cliente:', error);
+    
+    if (error.message && error.message.includes('duplicate key')) {
+      M.toast({html: 'CPF/CNPJ já cadastrado no sistema', classes: 'red'});
+    } else {
+      M.toast({html: 'Erro ao salvar cliente. Verifique os dados.', classes: 'red'});
+    }
+  }
+}
+
+// ========================================
+// VALIDAÇÕES
+// ========================================
+
+// Validar CPF
+function validarCPF(cpf) {
+  cpf = cpf.replace(/[^\d]/g, '');
+  
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1+$/.test(cpf)) return false;
+  
+  let soma = 0;
+  let resto;
+  
+  for (let i = 1; i <= 9; i++) {
+    soma += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+  }
+  
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(9, 10))) return false;
+  
+  soma = 0;
+  for (let i = 1; i <= 10; i++) {
+    soma += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+  }
+  
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.substring(10, 11))) return false;
+  
+  return true;
+}
+
+// Validar CNPJ
+function validarCNPJ(cnpj) {
+  cnpj = cnpj.replace(/[^\d]/g, '');
+  
+  if (cnpj.length !== 14) return false;
+  if (/^(\d)\1+$/.test(cnpj)) return false;
+  
+  let tamanho = cnpj.length - 2;
+  let numeros = cnpj.substring(0, tamanho);
+  let digitos = cnpj.substring(tamanho);
+  let soma = 0;
+  let pos = tamanho - 7;
+  
+  for (let i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  if (resultado != digitos.charAt(0)) return false;
+  
+  tamanho = tamanho + 1;
+  numeros = cnpj.substring(0, tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  
+  for (let i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  if (resultado != digitos.charAt(1)) return false;
+  
+  return true;
+}
+
+// Validar CPF ou CNPJ
+function validarCpfCnpj(valor) {
+  const apenasNumeros = valor.replace(/[^\d]/g, '');
+  
+  if (apenasNumeros.length === 11) {
+    return validarCPF(valor);
+  } else if (apenasNumeros.length === 14) {
+    return validarCNPJ(valor);
+  }
+  
+  return false;
+}
+
+// Formatar CPF/CNPJ
+function formatarCpfCnpj(valor) {
+  const apenasNumeros = valor.replace(/[^\d]/g, '');
+  
+  if (apenasNumeros.length === 11) {
+    // CPF: 000.000.000-00
+    return apenasNumeros.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  } else if (apenasNumeros.length === 14) {
+    // CNPJ: 00.000.000/0000-00
+    return apenasNumeros.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  }
+  
+  return valor;
+}
+
+// Validar formulário de cliente
+function validarFormularioCliente() {
+  const erros = [];
+  
+  // Campos obrigatórios
+  const empresaResponsavel = document.getElementById('empresa_responsavel').value.trim();
+  const squad = document.getElementById('squad').value.trim();
+  const razaoSocial = document.getElementById('razao_social').value.trim();
+  const cpfCnpj = document.getElementById('cpf_cnpj').value.trim();
+  const municipio = document.getElementById('municipio').value.trim();
+  const situacao = document.getElementById('situacao').value.trim();
+  
+  if (!empresaResponsavel) {
+    erros.push('Empresa Responsável é obrigatória');
+  }
+  
+  if (!squad) {
+    erros.push('Squad é obrigatório');
+  }
+  
+  if (!razaoSocial) {
+    erros.push('Razão Social é obrigatória');
+  }
+  
+  if (!cpfCnpj) {
+    erros.push('CPF/CNPJ é obrigatório');
+  } else if (!validarCpfCnpj(cpfCnpj)) {
+    erros.push('CPF/CNPJ inválido');
+  }
+  
+  if (!municipio) {
+    erros.push('Município é obrigatório');
+  }
+  
+  if (!situacao) {
+    erros.push('Situação é obrigatória');
+  }
+  
+  // Validar faturamento (se preenchido)
+  const faturamento = document.getElementById('faturamento').value;
+  if (faturamento && parseFloat(faturamento) < 0) {
+    erros.push('Faturamento não pode ser negativo');
+  }
+  
+  return erros;
+}
+
+// Aplicar máscara de CPF/CNPJ automaticamente
+function aplicarMascaraCpfCnpj() {
+  const input = document.getElementById('cpf_cnpj');
+  if (!input) return;
+  
+  input.addEventListener('input', function(e) {
+    let valor = e.target.value.replace(/[^\d]/g, '');
+    
+    if (valor.length <= 11) {
+      // Máscara CPF: 000.000.000-00
+      valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+      valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+      valor = valor.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      // Máscara CNPJ: 00.000.000/0000-00
+      valor = valor.substring(0, 14);
+      valor = valor.replace(/(\d{2})(\d)/, '$1.$2');
+      valor = valor.replace(/(\d{3})(\d)/, '$1.$2');
+      valor = valor.replace(/(\d{3})(\d)/, '$1/$2');
+      valor = valor.replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    
+    e.target.value = valor;
+  });
 }
 
 // ========================================
@@ -498,3 +890,4 @@ async function logAuditoria(acao, id_cliente_afetado, detalhes) {
 }
 
 console.log('✅ app.js carregado com sucesso!');
+
