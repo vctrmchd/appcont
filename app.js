@@ -209,7 +209,7 @@ async function loadDashboardStats() {
 }
 
 // ========================================
-// CLIENTES
+// CLIENTES - CRUD COMPLETO
 // ========================================
 async function loadClientes() {
   try {
@@ -234,10 +234,7 @@ async function loadClientes() {
 
 function renderClientes(clientes) {
   const tbody = document.getElementById('clientesTableBody');
-  if (!tbody) {
-    console.error('❌ Elemento clientesTableBody não encontrado');
-    return;
-  }
+  if (!tbody) return;
   
   tbody.innerHTML = '';
   
@@ -275,20 +272,35 @@ function renderClientes(clientes) {
 
 function filterClientes() {
   const searchTerm = document.getElementById('searchCliente').value.toLowerCase();
-  console.log(`🔍 Buscando por: "${searchTerm}"`);
-  
   const filteredClientes = allClientes.filter(cliente => 
     (cliente.razao_social && cliente.razao_social.toLowerCase().includes(searchTerm)) || 
     (cliente.cpf_cnpj && cliente.cpf_cnpj.toLowerCase().includes(searchTerm))
   );
-  
-  console.log(`✅ ${filteredClientes.length} clientes encontrados`);
   renderClientes(filteredClientes);
 }
 
-async function viewCliente(id_cliente) {
+// Abrir modal para NOVO cliente
+function openNovoClienteModal() {
+  console.log('➕ Abrir modal de novo cliente');
+  editingClienteId = null;
+  resetClienteForm();
+  document.getElementById('clienteModalTitle').textContent = 'Novo Cliente';
+  
+  // Reinicializar selects
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('select'));
+    M.updateTextFields();
+  }, 100);
+  
+  if (clienteModalInstance) {
+    clienteModalInstance.open();
+  }
+}
+
+// Abrir modal para EDITAR cliente
+async function editCliente(id_cliente) {
   try {
-    console.log(`👁️ Visualizando cliente ${id_cliente}`);
+    console.log(`✏️ Editar cliente ${id_cliente}`);
     
     const { data, error } = await supabaseClient
       .from('clientes')
@@ -298,62 +310,38 @@ async function viewCliente(id_cliente) {
     
     if (error) throw error;
     
-    const detalhes = `
-Detalhes do Cliente:
-
-Razão Social: ${data.razao_social}
-CPF/CNPJ: ${data.cpf_cnpj}
-Município: ${data.municipio}
-Situação: ${data.situacao}
-Regime de Tributação: ${data.regime_tributacao || '-'}
-Faturamento: ${data.faturamento ? `R$ ${data.faturamento.toLocaleString('pt-BR')}` : '-'}
-Empresa Responsável: ${data.empresa_responsavel}
-    `;
+    editingClienteId = id_cliente;
+    document.getElementById('clienteModalTitle').textContent = 'Editar Cliente';
     
-    alert(detalhes);
+    // Preencher formulário
+    document.getElementById('cliente_id').value = data.id_cliente;
+    document.getElementById('empresa_responsavel').value = data.empresa_responsavel || '';
+    document.getElementById('squad').value = data.squad || '';
+    document.getElementById('razao_social').value = data.razao_social || '';
+    document.getElementById('cpf_cnpj').value = data.cpf_cnpj || '';
+    document.getElementById('municipio').value = data.municipio || '';
+    document.getElementById('situacao').value = data.situacao || '';
+    document.getElementById('regime_tributacao').value = data.regime_tributacao || '';
+    document.getElementById('faturamento').value = data.faturamento || '';
+    document.getElementById('data_entrada').value = data.data_entrada || '';
+    document.getElementById('data_constituicao').value = data.data_constituicao || '';
+    document.getElementById('ultima_consulta_fiscal').value = data.ultima_consulta_fiscal || '';
+    document.getElementById('observacoes').value = data.observacoes || '';
+    
+    // Reinicializar Materialize
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('select'));
+      M.updateTextFields();
+      M.textareaAutoResize(document.getElementById('observacoes'));
+    }, 100);
+    
+    if (clienteModalInstance) {
+      clienteModalInstance.open();
+    }
   } catch (error) {
-    console.error('❌ Erro ao visualizar cliente:', error);
-    M.toast({html: 'Cliente não encontrado', classes: 'red'});
+    console.error('❌ Erro ao carregar cliente para edição:', error);
+    M.toast({html: 'Erro ao carregar cliente', classes: 'red'});
   }
-}
-
-function editCliente(id_cliente) {
-  console.log(`✏️ Editar cliente ${id_cliente} - Em desenvolvimento`);
-  M.toast({html: 'Funcionalidade de edição em desenvolvimento.', classes: 'blue'});
-}
-
-async function deleteCliente(id_cliente) {
-  if (!confirm('Tem certeza que deseja deletar este cliente?')) {
-    console.log('❌ Deleção cancelada pelo usuário');
-    return;
-  }
-  
-  try {
-    console.log(`🗑️ Deletando cliente ${id_cliente}...`);
-    
-    const { error } = await supabaseClient
-      .from('clientes')
-      .delete()
-      .eq('id_cliente', id_cliente);
-    
-    if (error) throw error;
-    
-    console.log('✅ Cliente deletado com sucesso');
-    M.toast({html: 'Cliente deletado com sucesso!', classes: 'green'});
-    
-    // Registrar na auditoria
-    await logAuditoria('CLIENTE_DELETADO', id_cliente, `Cliente com ID ${id_cliente} deletado.`);
-    
-    loadClientes();
-  } catch (error) {
-    console.error('❌ Erro ao deletar cliente:', error);
-    M.toast({html: 'Erro ao deletar cliente', classes: 'red'});
-  }
-}
-
-function openNovoClienteModal() {
-  console.log('➕ Abrir modal de novo cliente - Em desenvolvimento');
-  M.toast({html: 'Funcionalidade em desenvolvimento', classes: 'blue'});
 }
 
 // ========================================
