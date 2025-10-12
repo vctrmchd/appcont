@@ -73,6 +73,18 @@
     .collection-item {
       padding: 10px 20px !important;
     }
+    .modal {
+      max-height: 90%;
+    }
+    .modal .modal-content {
+      padding: 24px;
+    }
+    .input-field {
+      margin-bottom: 20px;
+    }
+    .row {
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -258,6 +270,112 @@
       </div>
     </div>
   </footer>
+
+  <!-- Modal: Novo/Editar Cliente -->
+  <div id="clienteModal" class="modal modal-fixed-footer">
+    <div class="modal-content">
+      <h4 id="clienteModalTitle">Novo Cliente</h4>
+      <form id="clienteForm">
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <select id="empresa_responsavel" required>
+              <option value="" disabled selected>Escolha uma empresa</option>
+              <option value="Sorria">Sorria</option>
+              <option value="Medic">Medic</option>
+            </select>
+            <label>Empresa Responsável *</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="squad" type="text" required>
+            <label for="squad">Squad *</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="razao_social" type="text" required>
+            <label for="razao_social">Razão Social *</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="cpf_cnpj" type="text" required>
+            <label for="cpf_cnpj">CPF/CNPJ *</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="municipio" type="text" required>
+            <label for="municipio">Município *</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <select id="situacao" required>
+              <option value="" disabled selected>Escolha a situação</option>
+              <option value="Ativo">Ativo</option>
+              <option value="Inativo">Inativo</option>
+              <option value="Baixada">Baixada</option>
+            </select>
+            <label>Situação *</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <select id="regime_tributacao">
+              <option value="" disabled selected>Escolha o regime</option>
+              <option value="Simples Nacional">Simples Nacional</option>
+              <option value="Lucro Presumido">Lucro Presumido</option>
+              <option value="Lucro Real">Lucro Real</option>
+              <option value="MEI">MEI</option>
+            </select>
+            <label>Regime de Tributação</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="faturamento" type="number" step="0.01" min="0">
+            <label for="faturamento">Faturamento (R$)</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m4">
+            <input id="data_entrada" type="date">
+            <label for="data_entrada" class="active">Data de Entrada</label>
+          </div>
+          <div class="input-field col s12 m4">
+            <input id="data_constituicao" type="date">
+            <label for="data_constituicao" class="active">Data de Constituição</label>
+          </div>
+          <div class="input-field col s12 m4">
+            <input id="ultima_consulta_fiscal" type="date">
+            <label for="ultima_consulta_fiscal" class="active">Última Consulta Fiscal</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12">
+            <textarea id="observacoes" class="materialize-textarea"></textarea>
+            <label for="observacoes">Observações</label>
+          </div>
+        </div>
+
+        <input type="hidden" id="cliente_id">
+      </form>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-red btn-flat">Cancelar</a>
+      <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarCliente()">Salvar</a>
+    </div>
+  </div>
+
+  <!-- Modal: Visualizar Cliente -->
+  <div id="viewClienteModal" class="modal">
+    <div class="modal-content">
+      <h4>Detalhes do Cliente</h4>
+      <div id="clienteDetalhes"></div>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-green btn-flat">Fechar</a>
+    </div>
+  </div>
 
   <!-- Materialize JS -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
