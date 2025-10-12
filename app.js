@@ -516,3 +516,4 @@ async function logAuditoria(acao, id_cliente_afetado, detalhes) {
 }
 
 console.log('✅ app.js carregado com sucesso!');
+
