@@ -1,32 +1,37 @@
-// app.js - Lógica principal da aplicação
+// app.js - Lógica completa da aplicação
 let currentUser = null;
 let allClientes = [];
+let clienteModalInstance = null;
+let viewClienteModalInstance = null;
+let editingClienteId = null;
 
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Inicializando aplicação...');
+  
+  // Inicializar Materialize
   M.AutoInit();
-  // TESTE DE CONEXÃO - REMOVER DEPOIS
-async function testarConexao() {
-  console.log('🧪 Testando conexão com Supabase...');
-  try {
-    const { data, error, count } = await supabaseClient
-      .from('usuarios')
-      .select('*', { count: 'exact' });
-    
-    console.log('📊 Resultado da query:');
-    console.log('- Dados:', data);
-    console.log('- Erro:', error);
-    console.log('- Count:', count);
-  } catch (err) {
-    console.error('❌ Erro no teste:', err);
+  
+  // Inicializar modais
+  const clienteModalEl = document.getElementById('clienteModal');
+  const viewClienteModalEl = document.getElementById('viewClienteModal');
+  
+  if (clienteModalEl) {
+    clienteModalInstance = M.Modal.init(clienteModalEl, {
+      dismissible: true,
+      onCloseEnd: resetClienteForm
+    });
   }
-}
-
-// Executar teste
-setTimeout(testarConexao, 2000);
+  
+  if (viewClienteModalEl) {
+    viewClienteModalInstance = M.Modal.init(viewClienteModalEl);
+  }
+  
+  // Inicializar selects
+  M.FormSelect.init(document.querySelectorAll('select'));
+  
   loadUser();
   showDashboard();
 });
@@ -38,8 +43,6 @@ async function loadUser() {
   try {
     console.log('📧 Carregando usuário...');
     
-    // Para BETA: usar usuário fixo para testes
-    // TODO: Implementar login real depois
     const { data, error } = await supabaseClient
       .from('usuarios')
       .select('*')
@@ -56,7 +59,6 @@ async function loadUser() {
     
     console.log('✅ Usuário carregado:', currentUser.email);
     
-    // Esconder seções sem permissão
     if (data.papel !== 'Administrador') {
       const usuariosSection = document.getElementById('usuariosSection');
       const auditoriaSection = document.getElementById('auditoriaSection');
@@ -72,7 +74,7 @@ async function loadUser() {
     }
   } catch (error) {
     console.error('❌ Erro ao carregar usuário:', error);
-    M.toast({html: 'Erro ao carregar usuário. Verifique o console.', classes: 'red'});
+    M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
   }
 }
 
@@ -138,7 +140,6 @@ async function loadDashboardStats() {
     
     console.log(`✅ ${clientes.length} clientes carregados`);
 
-    // Calcular estatísticas
     const stats = {
       totalClientes: clientes.length,
       clientesAtivos: clientes.filter(c => c.situacao === 'Ativo').length,
@@ -152,17 +153,14 @@ async function loadDashboardStats() {
     const trintaDias = new Date(hoje.getTime() + (30 * 24 * 60 * 60 * 1000));
 
     clientes.forEach(cliente => {
-      // Empresas
       stats.clientesPorEmpresa[cliente.empresa_responsavel] = 
         (stats.clientesPorEmpresa[cliente.empresa_responsavel] || 0) + 1;
       
-      // Tributação
       if (cliente.regime_tributacao) {
         stats.clientesPorTributacao[cliente.regime_tributacao] = 
           (stats.clientesPorTributacao[cliente.regime_tributacao] || 0) + 1;
       }
       
-      // Vencimentos próximos
       ['vencimento_iss', 'prazo_efd_reinf', 'prazo_fechamento'].forEach(campo => {
         if (cliente[campo]) {
           const vencimento = new Date(cliente[campo]);
@@ -172,7 +170,6 @@ async function loadDashboardStats() {
         }
       });
       
-      // Pendências fiscais
       if (['status_regularidade_federal', 'status_regularidade_municipal', 
            'status_regularidade_estadual', 'status_regularidade_conselho']
           .some(campo => ['PENDENTE', 'IRREGULAR'].includes(cliente[campo]))) {
@@ -180,13 +177,11 @@ async function loadDashboardStats() {
       }
     });
 
-    // Atualizar UI
     document.getElementById('totalClientes').textContent = stats.totalClientes;
     document.getElementById('clientesAtivos').textContent = stats.clientesAtivos;
     document.getElementById('clientesVencimento').textContent = stats.clientesVencimento;
     document.getElementById('clientesPendencia').textContent = stats.clientesPendencia;
 
-    // Empresas
     let empresaHtml = '<ul class="collection">';
     for (const [empresa, count] of Object.entries(stats.clientesPorEmpresa)) {
       empresaHtml += `<li class="collection-item"><strong>${empresa}:</strong> ${count}</li>`;
@@ -194,7 +189,6 @@ async function loadDashboardStats() {
     empresaHtml += '</ul>';
     document.getElementById('clientesPorEmpresa').innerHTML = empresaHtml;
 
-    // Tributação
     let tributacaoHtml = '<ul class="collection">';
     if (Object.keys(stats.clientesPorTributacao).length > 0) {
       for (const [regime, count] of Object.entries(stats.clientesPorTributacao)) {
@@ -215,7 +209,7 @@ async function loadDashboardStats() {
 }
 
 // ========================================
-// CLIENTES
+// CLIENTES - CRUD COMPLETO
 // ========================================
 async function loadClientes() {
   try {
@@ -240,10 +234,7 @@ async function loadClientes() {
 
 function renderClientes(clientes) {
   const tbody = document.getElementById('clientesTableBody');
-  if (!tbody) {
-    console.error('❌ Elemento clientesTableBody não encontrado');
-    return;
-  }
+  if (!tbody) return;
   
   tbody.innerHTML = '';
   
@@ -281,20 +272,35 @@ function renderClientes(clientes) {
 
 function filterClientes() {
   const searchTerm = document.getElementById('searchCliente').value.toLowerCase();
-  console.log(`🔍 Buscando por: "${searchTerm}"`);
-  
   const filteredClientes = allClientes.filter(cliente => 
     (cliente.razao_social && cliente.razao_social.toLowerCase().includes(searchTerm)) || 
     (cliente.cpf_cnpj && cliente.cpf_cnpj.toLowerCase().includes(searchTerm))
   );
-  
-  console.log(`✅ ${filteredClientes.length} clientes encontrados`);
   renderClientes(filteredClientes);
 }
 
-async function viewCliente(id_cliente) {
+// Abrir modal para NOVO cliente
+function openNovoClienteModal() {
+  console.log('➕ Abrir modal de novo cliente');
+  editingClienteId = null;
+  resetClienteForm();
+  document.getElementById('clienteModalTitle').textContent = 'Novo Cliente';
+  
+  // Reinicializar selects
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('select'));
+    M.updateTextFields();
+  }, 100);
+  
+  if (clienteModalInstance) {
+    clienteModalInstance.open();
+  }
+}
+
+// Abrir modal para EDITAR cliente
+async function editCliente(id_cliente) {
   try {
-    console.log(`👁️ Visualizando cliente ${id_cliente}`);
+    console.log(`✏️ Editar cliente ${id_cliente}`);
     
     const { data, error } = await supabaseClient
       .from('clientes')
@@ -304,62 +310,38 @@ async function viewCliente(id_cliente) {
     
     if (error) throw error;
     
-    const detalhes = `
-Detalhes do Cliente:
-
-Razão Social: ${data.razao_social}
-CPF/CNPJ: ${data.cpf_cnpj}
-Município: ${data.municipio}
-Situação: ${data.situacao}
-Regime de Tributação: ${data.regime_tributacao || '-'}
-Faturamento: ${data.faturamento ? `R$ ${data.faturamento.toLocaleString('pt-BR')}` : '-'}
-Empresa Responsável: ${data.empresa_responsavel}
-    `;
+    editingClienteId = id_cliente;
+    document.getElementById('clienteModalTitle').textContent = 'Editar Cliente';
     
-    alert(detalhes);
+    // Preencher formulário
+    document.getElementById('cliente_id').value = data.id_cliente;
+    document.getElementById('empresa_responsavel').value = data.empresa_responsavel || '';
+    document.getElementById('squad').value = data.squad || '';
+    document.getElementById('razao_social').value = data.razao_social || '';
+    document.getElementById('cpf_cnpj').value = data.cpf_cnpj || '';
+    document.getElementById('municipio').value = data.municipio || '';
+    document.getElementById('situacao').value = data.situacao || '';
+    document.getElementById('regime_tributacao').value = data.regime_tributacao || '';
+    document.getElementById('faturamento').value = data.faturamento || '';
+    document.getElementById('data_entrada').value = data.data_entrada || '';
+    document.getElementById('data_constituicao').value = data.data_constituicao || '';
+    document.getElementById('ultima_consulta_fiscal').value = data.ultima_consulta_fiscal || '';
+    document.getElementById('observacoes').value = data.observacoes || '';
+    
+    // Reinicializar Materialize
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('select'));
+      M.updateTextFields();
+      M.textareaAutoResize(document.getElementById('observacoes'));
+    }, 100);
+    
+    if (clienteModalInstance) {
+      clienteModalInstance.open();
+    }
   } catch (error) {
-    console.error('❌ Erro ao visualizar cliente:', error);
-    M.toast({html: 'Cliente não encontrado', classes: 'red'});
+    console.error('❌ Erro ao carregar cliente para edição:', error);
+    M.toast({html: 'Erro ao carregar cliente', classes: 'red'});
   }
-}
-
-function editCliente(id_cliente) {
-  console.log(`✏️ Editar cliente ${id_cliente} - Em desenvolvimento`);
-  M.toast({html: 'Funcionalidade de edição em desenvolvimento.', classes: 'blue'});
-}
-
-async function deleteCliente(id_cliente) {
-  if (!confirm('Tem certeza que deseja deletar este cliente?')) {
-    console.log('❌ Deleção cancelada pelo usuário');
-    return;
-  }
-  
-  try {
-    console.log(`🗑️ Deletando cliente ${id_cliente}...`);
-    
-    const { error } = await supabaseClient
-      .from('clientes')
-      .delete()
-      .eq('id_cliente', id_cliente);
-    
-    if (error) throw error;
-    
-    console.log('✅ Cliente deletado com sucesso');
-    M.toast({html: 'Cliente deletado com sucesso!', classes: 'green'});
-    
-    // Registrar na auditoria
-    await logAuditoria('CLIENTE_DELETADO', id_cliente, `Cliente com ID ${id_cliente} deletado.`);
-    
-    loadClientes();
-  } catch (error) {
-    console.error('❌ Erro ao deletar cliente:', error);
-    M.toast({html: 'Erro ao deletar cliente', classes: 'red'});
-  }
-}
-
-function openNovoClienteModal() {
-  console.log('➕ Abrir modal de novo cliente - Em desenvolvimento');
-  M.toast({html: 'Funcionalidade em desenvolvimento', classes: 'blue'});
 }
 
 // ========================================
