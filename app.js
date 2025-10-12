@@ -1,32 +1,37 @@
-// app.js - Lógica principal da aplicação
+// app.js - Lógica completa da aplicação
 let currentUser = null;
 let allClientes = [];
+let clienteModalInstance = null;
+let viewClienteModalInstance = null;
+let editingClienteId = null;
 
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Inicializando aplicação...');
+  
+  // Inicializar Materialize
   M.AutoInit();
-  // TESTE DE CONEXÃO - REMOVER DEPOIS
-async function testarConexao() {
-  console.log('🧪 Testando conexão com Supabase...');
-  try {
-    const { data, error, count } = await supabaseClient
-      .from('usuarios')
-      .select('*', { count: 'exact' });
-    
-    console.log('📊 Resultado da query:');
-    console.log('- Dados:', data);
-    console.log('- Erro:', error);
-    console.log('- Count:', count);
-  } catch (err) {
-    console.error('❌ Erro no teste:', err);
+  
+  // Inicializar modais
+  const clienteModalEl = document.getElementById('clienteModal');
+  const viewClienteModalEl = document.getElementById('viewClienteModal');
+  
+  if (clienteModalEl) {
+    clienteModalInstance = M.Modal.init(clienteModalEl, {
+      dismissible: true,
+      onCloseEnd: resetClienteForm
+    });
   }
-}
-
-// Executar teste
-setTimeout(testarConexao, 2000);
+  
+  if (viewClienteModalEl) {
+    viewClienteModalInstance = M.Modal.init(viewClienteModalEl);
+  }
+  
+  // Inicializar selects
+  M.FormSelect.init(document.querySelectorAll('select'));
+  
   loadUser();
   showDashboard();
 });
@@ -38,8 +43,6 @@ async function loadUser() {
   try {
     console.log('📧 Carregando usuário...');
     
-    // Para BETA: usar usuário fixo para testes
-    // TODO: Implementar login real depois
     const { data, error } = await supabaseClient
       .from('usuarios')
       .select('*')
@@ -56,7 +59,6 @@ async function loadUser() {
     
     console.log('✅ Usuário carregado:', currentUser.email);
     
-    // Esconder seções sem permissão
     if (data.papel !== 'Administrador') {
       const usuariosSection = document.getElementById('usuariosSection');
       const auditoriaSection = document.getElementById('auditoriaSection');
@@ -72,7 +74,7 @@ async function loadUser() {
     }
   } catch (error) {
     console.error('❌ Erro ao carregar usuário:', error);
-    M.toast({html: 'Erro ao carregar usuário. Verifique o console.', classes: 'red'});
+    M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
   }
 }
 
@@ -138,7 +140,6 @@ async function loadDashboardStats() {
     
     console.log(`✅ ${clientes.length} clientes carregados`);
 
-    // Calcular estatísticas
     const stats = {
       totalClientes: clientes.length,
       clientesAtivos: clientes.filter(c => c.situacao === 'Ativo').length,
@@ -152,17 +153,14 @@ async function loadDashboardStats() {
     const trintaDias = new Date(hoje.getTime() + (30 * 24 * 60 * 60 * 1000));
 
     clientes.forEach(cliente => {
-      // Empresas
       stats.clientesPorEmpresa[cliente.empresa_responsavel] = 
         (stats.clientesPorEmpresa[cliente.empresa_responsavel] || 0) + 1;
       
-      // Tributação
       if (cliente.regime_tributacao) {
         stats.clientesPorTributacao[cliente.regime_tributacao] = 
           (stats.clientesPorTributacao[cliente.regime_tributacao] || 0) + 1;
       }
       
-      // Vencimentos próximos
       ['vencimento_iss', 'prazo_efd_reinf', 'prazo_fechamento'].forEach(campo => {
         if (cliente[campo]) {
           const vencimento = new Date(cliente[campo]);
@@ -172,7 +170,6 @@ async function loadDashboardStats() {
         }
       });
       
-      // Pendências fiscais
       if (['status_regularidade_federal', 'status_regularidade_municipal', 
            'status_regularidade_estadual', 'status_regularidade_conselho']
           .some(campo => ['PENDENTE', 'IRREGULAR'].includes(cliente[campo]))) {
@@ -180,13 +177,11 @@ async function loadDashboardStats() {
       }
     });
 
-    // Atualizar UI
     document.getElementById('totalClientes').textContent = stats.totalClientes;
     document.getElementById('clientesAtivos').textContent = stats.clientesAtivos;
     document.getElementById('clientesVencimento').textContent = stats.clientesVencimento;
     document.getElementById('clientesPendencia').textContent = stats.clientesPendencia;
 
-    // Empresas
     let empresaHtml = '<ul class="collection">';
     for (const [empresa, count] of Object.entries(stats.clientesPorEmpresa)) {
       empresaHtml += `<li class="collection-item"><strong>${empresa}:</strong> ${count}</li>`;
@@ -194,7 +189,6 @@ async function loadDashboardStats() {
     empresaHtml += '</ul>';
     document.getElementById('clientesPorEmpresa').innerHTML = empresaHtml;
 
-    // Tributação
     let tributacaoHtml = '<ul class="collection">';
     if (Object.keys(stats.clientesPorTributacao).length > 0) {
       for (const [regime, count] of Object.entries(stats.clientesPorTributacao)) {
