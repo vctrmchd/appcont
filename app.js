@@ -8,6 +8,25 @@ let allClientes = [];
 document.addEventListener('DOMContentLoaded', function() {
   console.log('🚀 Inicializando aplicação...');
   M.AutoInit();
+  // TESTE DE CONEXÃO - REMOVER DEPOIS
+async function testarConexao() {
+  console.log('🧪 Testando conexão com Supabase...');
+  try {
+    const { data, error, count } = await supabaseClient
+      .from('usuarios')
+      .select('*', { count: 'exact' });
+    
+    console.log('📊 Resultado da query:');
+    console.log('- Dados:', data);
+    console.log('- Erro:', error);
+    console.log('- Count:', count);
+  } catch (err) {
+    console.error('❌ Erro no teste:', err);
+  }
+}
+
+// Executar teste
+setTimeout(testarConexao, 2000);
   loadUser();
   showDashboard();
 });
