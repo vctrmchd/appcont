@@ -703,4 +703,72 @@ function resetClienteForm() {
     M.FormSelect.init(document.querySelectorAll('select'));
     M.updateTextFields();
   }, 100);
+
+// ========================================
+// FILTROS AVANÇADOS - Adicionar ao app.js
+// ========================================
+
+function aplicarFiltrosAvancados() {
+  const filtros = {
+    empresa: document.getElementById('filtroEmpresa')?.value || '',
+    squad: document.getElementById('filtroSquad')?.value || '',
+    regime: document.getElementById('filtroRegime')?.value || '',
+    situacao: document.getElementById('filtroSituacao')?.value || '',
+    faturamentoMin: parseFloat(document.getElementById('filtroFatMin')?.value) || 0,
+    faturamentoMax: parseFloat(document.getElementById('filtroFatMax')?.value) || Infinity,
+    dataEntradaInicio: document.getElementById('filtroDataEntradaInicio')?.value || '',
+    dataEntradaFim: document.getElementById('filtroDataEntradaFim')?.value || '',
+    dataConstituicaoInicio: document.getElementById('filtroDataConstInicio')?.value || '',
+    dataConstituicaoFim: document.getElementById('filtroDataConstFim')?.value || '',
+    dataConsultaInicio: document.getElementById('filtroDataConsultaInicio')?.value || '',
+    dataConsultaFim: document.getElementById('filtroDataConsultaFim')?.value || ''
+  };
+
+  const filtrados = allClientes.filter(cliente => {
+    if (filtros.empresa && cliente.empresa_responsavel !== filtros.empresa) return false;
+    if (filtros.squad && cliente.squad !== filtros.squad) return false;
+    if (filtros.regime && cliente.regime_tributacao !== filtros.regime) return false;
+    if (filtros.situacao && cliente.situacao !== filtros.situacao) return false;
+    
+    if (cliente.faturamento) {
+      const fat = parseFloat(cliente.faturamento);
+      if (fat < filtros.faturamentoMin || fat > filtros.faturamentoMax) return false;
+    }
+    
+    if (filtros.dataEntradaInicio && cliente.data_entrada < filtros.dataEntradaInicio) return false;
+    if (filtros.dataEntradaFim && cliente.data_entrada > filtros.dataEntradaFim) return false;
+    
+    if (filtros.dataConstituicaoInicio && cliente.data_constituicao < filtros.dataConstituicaoInicio) return false;
+    if (filtros.dataConstituicaoFim && cliente.data_constituicao > filtros.dataConstituicaoFim) return false;
+    
+    if (filtros.dataConsultaInicio && cliente.ultima_consulta_fiscal < filtros.dataConsultaInicio) return false;
+    if (filtros.dataConsultaFim && cliente.ultima_consulta_fiscal > filtros.dataConsultaFim) return false;
+    
+    return true;
+  });
+
+  renderClientes(filtrados);
+  M.toast({html: `${filtrados.length} cliente(s) encontrado(s)`, classes: 'blue'});
+}
+
+function limparFiltros() {
+  ['filtroEmpresa', 'filtroSquad', 'filtroRegime', 'filtroSituacao', 
+   'filtroFatMin', 'filtroFatMax', 'filtroDataEntradaInicio', 'filtroDataEntradaFim',
+   'filtroDataConstInicio', 'filtroDataConstFim', 'filtroDataConsultaInicio', 'filtroDataConsultaFim']
+  .forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  
+  M.FormSelect.init(document.querySelectorAll('select'));
+  renderClientes(allClientes);
+  M.toast({html: 'Filtros limpos', classes: 'green'});
+}
+
+function toggleFiltros() {
+  const filtrosDiv = document.getElementById('filtrosAvancados');
+  if (filtrosDiv) {
+    filtrosDiv.classList.toggle('hidden');
+  }
+}
 }
