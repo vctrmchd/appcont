@@ -160,18 +160,61 @@
           <div class="col s12">
             <div class="card">
               <div class="card-content">
-                <div class="row">
-                  <div class="col s12 m8">
-                    <div class="input-field">
+                <div class="row" style="margin-bottom: 10px;">
+                  <div class="col s12 m6 l5">
+                    <div class="input-field" style="margin-top: 0;">
                       <i class="material-icons prefix">search</i>
                       <input id="searchCliente" type="text" onkeyup="filterClientes()">
                       <label for="searchCliente">Buscar por Razão Social ou CPF/CNPJ</label>
                     </div>
                   </div>
-                  <div class="col s12 m4 right-align">
+                  <div class="col s12 m6 l7 right-align" style="padding-top: 10px;">
+                    <a class="btn-flat waves-effect waves-light" onclick="toggleFiltros()" style="margin-right: 10px;">
+                      <i class="material-icons left">filter_list</i>Filtros
+                    </a>
                     <a class="btn waves-effect waves-light blue" onclick="openNovoClienteModal()">
                       <i class="material-icons left">add</i>Novo Cliente
                     </a>
+                  </div>
+                </div>
+                
+                <!-- Painel de Filtros Avançados (oculto por padrão) -->
+                <div id="filtrosAvancados" class="row" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                  <div class="col s12 m4">
+                    <div class="input-field">
+                      <select id="filtroEmpresa" onchange="aplicarFiltros()">
+                        <option value="">Todas</option>
+                        <option value="Sorria">Sorria</option>
+                        <option value="Medic">Medic</option>
+                      </select>
+                      <label>Empresa</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m4">
+                    <div class="input-field">
+                      <select id="filtroSituacao" onchange="aplicarFiltros()">
+                        <option value="">Todas</option>
+                        <option value="Ativo">Ativo</option>
+                        <option value="Inativo">Inativo</option>
+                        <option value="Baixada">Baixada</option>
+                      </select>
+                      <label>Situação</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m4">
+                    <div class="input-field">
+                      <select id="filtroTributacao" onchange="aplicarFiltros()">
+                        <option value="">Todos</option>
+                        <option value="Simples Nacional">Simples Nacional</option>
+                        <option value="Lucro Presumido">Lucro Presumido</option>
+                        <option value="Lucro Real">Lucro Real</option>
+                        <option value="MEI">MEI</option>
+                      </select>
+                      <label>Regime de Tributação</label>
+                    </div>
+                  </div>
+                  <div class="col s12 right-align">
+                    <a class="btn-flat waves-effect" onclick="limparFiltros()">Limpar Filtros</a>
                   </div>
                 </div>
                 <table class="striped highlight responsive-table" id="clientesTable">

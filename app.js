@@ -226,12 +226,7 @@ function renderClientes(clientes) {
 }
 
 function filterClientes() {
-  const searchTerm = document.getElementById('searchCliente').value.toLowerCase();
-  const filtered = allClientes.filter(c => 
-    (c.razao_social && c.razao_social.toLowerCase().includes(searchTerm)) || 
-    (c.cpf_cnpj && c.cpf_cnpj.toLowerCase().includes(searchTerm))
-  );
-  renderClientes(filtered);
+  aplicarFiltros(); // Usar a função de filtros avançados
 }
 
 function openNovoClienteModal() {
@@ -397,7 +392,69 @@ function resetClienteForm() {
 }
 
 function toggleFiltros() {
-  M.toast({html: 'Filtros em desenvolvimento', classes: 'blue'});
+  const filtrosPanel = document.getElementById('filtrosAvancados');
+  if (filtrosPanel.style.display === 'none') {
+    filtrosPanel.style.display = 'block';
+    // Reinicializar selects
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#filtrosAvancados select'));
+    }, 100);
+  } else {
+    filtrosPanel.style.display = 'none';
+  }
+}
+
+function aplicarFiltros() {
+  const filtroEmpresa = document.getElementById('filtroEmpresa').value;
+  const filtroSituacao = document.getElementById('filtroSituacao').value;
+  const filtroTributacao = document.getElementById('filtroTributacao').value;
+  const searchTerm = document.getElementById('searchCliente').value.toLowerCase();
+  
+  let filtered = allClientes.filter(cliente => {
+    let match = true;
+    
+    // Filtro de busca textual
+    if (searchTerm) {
+      match = match && (
+        (cliente.razao_social && cliente.razao_social.toLowerCase().includes(searchTerm)) ||
+        (cliente.cpf_cnpj && cliente.cpf_cnpj.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    // Filtro de empresa
+    if (filtroEmpresa) {
+      match = match && cliente.empresa_responsavel === filtroEmpresa;
+    }
+    
+    // Filtro de situação
+    if (filtroSituacao) {
+      match = match && cliente.situacao === filtroSituacao;
+    }
+    
+    // Filtro de tributação
+    if (filtroTributacao) {
+      match = match && cliente.regime_tributacao === filtroTributacao;
+    }
+    
+    return match;
+  });
+  
+  renderClientes(filtered);
+  M.toast({html: `${filtered.length} cliente(s) encontrado(s)`, classes: 'blue'});
+}
+
+function limparFiltros() {
+  document.getElementById('filtroEmpresa').value = '';
+  document.getElementById('filtroSituacao').value = '';
+  document.getElementById('filtroTributacao').value = '';
+  document.getElementById('searchCliente').value = '';
+  
+  // Reinicializar selects
+  M.FormSelect.init(document.querySelectorAll('#filtrosAvancados select'));
+  M.updateTextFields();
+  
+  renderClientes(allClientes);
+  M.toast({html: 'Filtros limpos', classes: 'blue'});
 }
 
 // ========================================
