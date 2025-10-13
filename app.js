@@ -363,18 +363,141 @@ async function viewCliente(id_cliente) {
     
     if (error) throw error;
     
+    // Função auxiliar para formatar datas
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '-';
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('pt-BR');
+    };
+    
+    // Função auxiliar para formatar valores monetários
+    const formatMoney = (value) => {
+      if (!value || value === 0) return 'R$ 0,00';
+      return `R$ ${parseFloat(value).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    };
+    
+    // Cor da badge de situação
+    const situacaoColor = {
+      'Ativo': 'green',
+      'Inativo': 'orange',
+      'Baixada': 'red'
+    };
+    
     const detalhesHtml = `
-      <table class="striped">
-        <tr><th>Código:</th><td>${data.id_cliente}</td></tr>
-        <tr><th>Razão Social:</th><td>${data.razao_social}</td></tr>
-        <tr><th>CPF/CNPJ:</th><td>${data.cpf_cnpj}</td></tr>
-        <tr><th>Município:</th><td>${data.municipio}</td></tr>
-        <tr><th>Situação:</th><td>${data.situacao}</td></tr>
-        <tr><th>Empresa:</th><td>${data.empresa_responsavel}</td></tr>
-        <tr><th>Regime:</th><td>${data.regime_tributacao || '-'}</td></tr>
-        <tr><th>Faturamento:</th><td>R$ ${(data.faturamento || 0).toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td></tr>
-        <tr><th>Observações:</th><td>${data.observacoes || '-'}</td></tr>
-      </table>
+      <div style="padding: 10px 0;">
+        <!-- Cabeçalho com nome e situação -->
+        <div style="margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #e0e0e0;">
+          <h5 style="margin: 0 0 10px 0; color: #1976d2; font-weight: 500;">${data.razao_social}</h5>
+          <span class="new badge ${situacaoColor[data.situacao] || 'grey'}" data-badge-caption="${data.situacao}" style="font-size: 14px; padding: 5px 12px;"></span>
+        </div>
+        
+        <!-- Informações Básicas -->
+        <div style="margin-bottom: 25px;">
+          <h6 style="color: #424242; font-weight: 500; margin-bottom: 15px; font-size: 16px;">
+            <i class="material-icons tiny" style="vertical-align: middle;">business</i> Informações Básicas
+          </h6>
+          <div class="row" style="margin-bottom: 10px;">
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Código:</strong> #${data.id_cliente}</p>
+              <p style="margin: 8px 0;"><strong>CPF/CNPJ:</strong> ${data.cpf_cnpj || '-'}</p>
+              <p style="margin: 8px 0;"><strong>Município:</strong> ${data.municipio || '-'}</p>
+            </div>
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Empresa Responsável:</strong> ${data.empresa_responsavel || '-'}</p>
+              <p style="margin: 8px 0;"><strong>Squad:</strong> ${data.squad || '-'}</p>
+              <p style="margin: 8px 0;"><strong>Faturamento:</strong> ${formatMoney(data.faturamento)}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Informações Fiscais -->
+        <div style="margin-bottom: 25px;">
+          <h6 style="color: #424242; font-weight: 500; margin-bottom: 15px; font-size: 16px;">
+            <i class="material-icons tiny" style="vertical-align: middle;">account_balance</i> Informações Fiscais
+          </h6>
+          <div class="row" style="margin-bottom: 10px;">
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Regime de Tributação:</strong> ${data.regime_tributacao || '-'}</p>
+              <p style="margin: 8px 0;"><strong>Status Parcelamento:</strong> ${data.status_parcelamento || '-'}</p>
+            </div>
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Última Consulta Fiscal:</strong> ${formatDate(data.ultima_consulta_fiscal)}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Datas Importantes -->
+        <div style="margin-bottom: 25px;">
+          <h6 style="color: #424242; font-weight: 500; margin-bottom: 15px; font-size: 16px;">
+            <i class="material-icons tiny" style="vertical-align: middle;">event</i> Datas Importantes
+          </h6>
+          <div class="row" style="margin-bottom: 10px;">
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Data de Entrada:</strong> ${formatDate(data.data_entrada)}</p>
+              <p style="margin: 8px 0;"><strong>Data de Constituição:</strong> ${formatDate(data.data_constituicao)}</p>
+              <p style="margin: 8px 0;"><strong>Vencimento ISS:</strong> ${formatDate(data.vencimento_iss)}</p>
+            </div>
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;"><strong>Prazo EFD-Reinf:</strong> ${formatDate(data.prazo_efd_reinf)}</p>
+              <p style="margin: 8px 0;"><strong>Prazo Fechamento:</strong> ${formatDate(data.prazo_fechamento)}</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Regularidade -->
+        <div style="margin-bottom: 25px;">
+          <h6 style="color: #424242; font-weight: 500; margin-bottom: 15px; font-size: 16px;">
+            <i class="material-icons tiny" style="vertical-align: middle;">verified_user</i> Status de Regularidade
+          </h6>
+          <div class="row" style="margin-bottom: 10px;">
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;">
+                <strong>Federal:</strong> 
+                <span class="badge ${data.status_regularidade_federal === 'OK' ? 'green' : data.status_regularidade_federal === 'PENDENTE' ? 'orange' : 'red'} white-text" style="margin-left: 10px; padding: 4px 10px;">
+                  ${data.status_regularidade_federal || '-'}
+                </span>
+              </p>
+              <p style="margin: 8px 0;">
+                <strong>Municipal:</strong> 
+                <span class="badge ${data.status_regularidade_municipal === 'OK' ? 'green' : data.status_regularidade_municipal === 'PENDENTE' ? 'orange' : 'red'} white-text" style="margin-left: 10px; padding: 4px 10px;">
+                  ${data.status_regularidade_municipal || '-'}
+                </span>
+              </p>
+            </div>
+            <div class="col s12 m6">
+              <p style="margin: 8px 0;">
+                <strong>Estadual:</strong> 
+                <span class="badge ${data.status_regularidade_estadual === 'OK' ? 'green' : data.status_regularidade_estadual === 'PENDENTE' ? 'orange' : 'red'} white-text" style="margin-left: 10px; padding: 4px 10px;">
+                  ${data.status_regularidade_estadual || '-'}
+                </span>
+              </p>
+              <p style="margin: 8px 0;">
+                <strong>Conselho:</strong> 
+                <span class="badge ${data.status_regularidade_conselho === 'OK' ? 'green' : data.status_regularidade_conselho === 'PENDENTE' ? 'orange' : 'red'} white-text" style="margin-left: 10px; padding: 4px 10px;">
+                  ${data.status_regularidade_conselho || '-'}
+                </span>
+              </p>
+            </div>
+          </div>
+          ${data.observacoes_regularidade ? `
+            <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
+              <p style="margin: 0; color: #856404;"><strong>Observações:</strong> ${data.observacoes_regularidade}</p>
+            </div>
+          ` : ''}
+        </div>
+        
+        <!-- Observações Gerais -->
+        ${data.observacoes ? `
+        <div style="margin-bottom: 15px;">
+          <h6 style="color: #424242; font-weight: 500; margin-bottom: 15px; font-size: 16px;">
+            <i class="material-icons tiny" style="vertical-align: middle;">description</i> Observações
+          </h6>
+          <div style="padding: 15px; background: #f5f5f5; border-radius: 4px; border-left: 4px solid #2196f3;">
+            <p style="margin: 0; white-space: pre-wrap;">${data.observacoes}</p>
+          </div>
+        </div>
+        ` : ''}
+      </div>
     `;
     
     document.getElementById('clienteDetalhes').innerHTML = detalhesHtml;
