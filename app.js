@@ -772,4 +772,3 @@ function toggleFiltros() {
   }
   setTimeout(() => M.FormSelect.init(document.querySelectorAll('select')), 100);
 }
-}
