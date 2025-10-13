@@ -770,5 +770,6 @@ function toggleFiltros() {
   if (filtrosDiv) {
     filtrosDiv.classList.toggle('hidden');
   }
+  setTimeout(() => M.FormSelect.init(document.querySelectorAll('select')), 100);
 }
 }
