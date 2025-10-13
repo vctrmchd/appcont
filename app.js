@@ -773,4 +773,19 @@ function toggleFiltros() {
   setTimeout(() => M.FormSelect.init(document.querySelectorAll('select')), 100);
 }
 
+// Adicione esta função em qualquer lugar do seu arquivo app.js
+function toggleFiltros() {
+    // Assumindo que sua div de filtros tem o id="filtros-container"
+    const filtrosContainer = document.getElementById('filtros-container'); 
+    
+    if (filtrosContainer) {
+        // Alterna a classe 'hidden' para mostrar ou esconder o elemento
+        filtrosContainer.classList.toggle('hidden'); 
+        console.log('ℹ️ Filtros mostrados/ocultos.');
+    } else {
+        console.error('Elemento de filtros não encontrado!');
+    }
+}
+
+  
 }
