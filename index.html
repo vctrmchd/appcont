@@ -89,6 +89,154 @@
     .badge {
       border-radius: 12px;
     }
+    .dropdown-content li > a {
+      color: #424242 !important;
+      display: flex !important;
+      align-items: center;
+    }
+    .dropdown-content li > a > i {
+      margin-right: 10px;
+      color: #757575;
+    }
+    .dropdown-content li:hover {
+      background-color: #f5f5f5;
+    }
+    /* Modal de visualização maior */
+    #viewClienteModal {
+      max-width: 1200px;
+      width: 95%;
+      max-height: 95%;
+    }
+    #viewClienteModal .modal-content {
+      padding: 30px;
+      max-height: calc(95vh - 100px);
+      overflow-y: auto;
+    }
+    .info-section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .info-section h6 {
+      color: #1976d2;
+      font-weight: 500;
+      margin-bottom: 20px;
+      font-size: 18px;
+      border-bottom: 2px solid #1976d2;
+      padding-bottom: 10px;
+    }
+    .info-row {
+      display: flex;
+      margin-bottom: 15px;
+      align-items: flex-start;
+    }
+    .info-label {
+      font-weight: 600;
+      color: #424242;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+    }
+    .info-label i {
+      margin-right: 8px;
+      font-size: 18px;
+      color: #757575;
+    }
+    .info-value {
+      color: #616161;
+      flex: 1;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-ok {
+      background: #4caf50;
+      color: white;
+    }
+    .status-pendente {
+      background: #ff9800;
+      color: white;
+    }
+    .status-irregular {
+      background: #f44336;
+      color: white;
+    }
+    .status-ativo {
+      background: #4caf50;
+      color: white;
+    }
+    .status-inativo {
+      background: #ff9800;
+      color: white;
+    }
+    .status-baixada {
+      background: #f44336;
+      color: white;
+    }
+    .obs-box {
+      background: #f5f5f5;
+      border-left: 4px solid #2196f3;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    .alert-box {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      border-radius: 4px;
+      margin-top: 10px;
+    }
+    #clienteModal {
+      max-width: 1200px;
+      width: 95%;
+      max-height: 95%;
+    }
+    #clienteModal .modal-content {
+      padding: 30px;
+      max-height: calc(95vh - 100px);
+      overflow-y: auto;
+    }
+    .form-section {
+      background: #fff;
+      border-radius: 8px;
+      padding: 25px;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-left: 4px solid #1976d2;
+    }
+    .form-section h6 {
+      color: #1976d2;
+      font-weight: 500;
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-section h6 i {
+      font-size: 24px;
+    }
+    .form-header {
+      background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+      color: white;
+      padding: 25px 30px;
+      margin: -30px -30px 30px -30px;
+      border-radius: 8px 8px 0 0;
+    }
+    .form-header h4 {
+      margin: 0;
+      font-weight: 500;
+      font-size: 28px;
+    }
   </style>
 </head>
 <body>
@@ -159,7 +307,16 @@
 
       <!-- Clientes Section -->
       <div id="clientesSection" class="section hidden">
-        <h4 class="section-title">Clientes</h4>
+        <div class="row" style="margin-bottom: 20px; align-items: center;">
+          <div class="col s12 m6">
+            <h4 class="section-title" style="margin: 0;">Clientes</h4>
+          </div>
+          <div class="col s12 m6 right-align">
+            <a class="btn waves-effect waves-light blue" onclick="openNovoClienteModal()">
+              <i class="material-icons left">add</i>Novo Cliente
+            </a>
+          </div>
+        </div>
         <div class="row">
           <div class="col s12">
             <div class="card">
@@ -176,9 +333,13 @@
                     <a class="btn-flat waves-effect waves-light" onclick="toggleFiltros()" style="margin-right: 10px;">
                       <i class="material-icons left">filter_list</i>Filtros
                     </a>
-                    <a class="btn waves-effect waves-light blue" onclick="openNovoClienteModal()">
-                      <i class="material-icons left">add</i>Novo Cliente
+                    <a class="dropdown-trigger btn-flat waves-effect waves-light green-text" href="#!" data-target="dropdownExportar">
+                      <i class="material-icons left">file_download</i>Exportar<i class="material-icons right">arrow_drop_down</i>
                     </a>
+                    <ul id="dropdownExportar" class="dropdown-content">
+                      <li><a href="#!" onclick="exportarCSV()"><i class="material-icons left">description</i>CSV</a></li>
+                      <li><a href="#!" onclick="exportarExcel()"><i class="material-icons left">table_chart</i>Excel</a></li>
+                    </ul>
                   </div>
                 </div>
                 
@@ -217,6 +378,41 @@
                       <label>Regime de Tributação</label>
                     </div>
                   </div>
+                  <div class="col s12 m4">
+                    <div class="input-field">
+                      <select id="filtroUF" onchange="aplicarFiltros()">
+                        <option value="">Todos</option>
+                        <option value="AC">AC</option>
+                        <option value="AL">AL</option>
+                        <option value="AP">AP</option>
+                        <option value="AM">AM</option>
+                        <option value="BA">BA</option>
+                        <option value="CE">CE</option>
+                        <option value="DF">DF</option>
+                        <option value="ES">ES</option>
+                        <option value="GO">GO</option>
+                        <option value="MA">MA</option>
+                        <option value="MT">MT</option>
+                        <option value="MS">MS</option>
+                        <option value="MG">MG</option>
+                        <option value="PA">PA</option>
+                        <option value="PB">PB</option>
+                        <option value="PR">PR</option>
+                        <option value="PE">PE</option>
+                        <option value="PI">PI</option>
+                        <option value="RJ">RJ</option>
+                        <option value="RN">RN</option>
+                        <option value="RS">RS</option>
+                        <option value="RO">RO</option>
+                        <option value="RR">RR</option>
+                        <option value="SC">SC</option>
+                        <option value="SP">SP</option>
+                        <option value="SE">SE</option>
+                        <option value="TO">TO</option>
+                      </select>
+                      <label>UF</label>
+                    </div>
+                  </div>
                   <div class="col s12 right-align">
                     <a class="btn-flat waves-effect" onclick="limparFiltros()">Limpar Filtros</a>
                   </div>
@@ -224,19 +420,44 @@
                 <table class="striped highlight responsive-table" id="clientesTable">
                   <thead>
                     <tr>
-                      <th>Código</th>
-                      <th>Razão Social</th>
-                      <th>CPF/CNPJ</th>
-                      <th>Município</th>
-                      <th>Situação</th>
-                      <th>Empresa</th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('id_cliente')">
+                        Código <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('razao_social')">
+                        Razão Social <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('cpf_cnpj')">
+                        CPF/CNPJ <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('uf')">
+                        UF <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('situacao')">
+                        Situação <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('empresa_responsavel')">
+                        Empresa <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarPor('regime_tributacao')">
+                        Regime de Tributação <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
                       <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody id="clientesTableBody">
-                    <tr><td colspan="7" class="center-align">Carregando...</td></tr>
+                    <tr><td colspan="8" class="center-align">Carregando...</td></tr>
                   </tbody>
                 </table>
+                
+                <!-- Paginação -->
+                <div class="row" style="margin-top: 20px;">
+                  <div class="col s12 center-align">
+                    <ul class="pagination" id="paginacao"></ul>
+                    <p style="margin-top: 10px; color: #757575;">
+                      <span id="infoPaginacao"></span>
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -321,119 +542,281 @@
   <!-- Modal: Novo/Editar Cliente -->
   <div id="clienteModal" class="modal modal-fixed-footer">
     <div class="modal-content">
-      <h4 id="clienteModalTitle">Novo Cliente</h4>
+      <div class="form-header">
+        <h4 id="clienteModalTitle">Novo Cliente</h4>
+        <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Preencha os dados do cliente</p>
+      </div>
+      
       <form id="clienteForm">
-        <div class="row">
-          <div class="input-field col s12 m6">
-            <select id="empresa_responsavel" required>
-              <option value="" disabled selected>Escolha uma empresa</option>
-              <option value="Sorria">Sorria</option>
-              <option value="Medic">Medic</option>
-            </select>
-            <label>Empresa Responsável *</label>
+        
+        <!-- Informações Básicas -->
+        <div class="form-section">
+          <h6>
+            <i class="material-icons">business</i>
+            Informações Básicas
+          </h6>
+          
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <input id="razao_social" type="text" required>
+              <label for="razao_social">Razão Social *</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <input id="cpf_cnpj" type="text" required>
+              <label for="cpf_cnpj">CPF/CNPJ *</label>
+            </div>
           </div>
-          <div class="input-field col s12 m6">
-            <input id="squad" type="text" required>
-            <label for="squad">Squad *</label>
+
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <select id="empresa_responsavel" required>
+                <option value="" disabled selected>Escolha uma empresa</option>
+                <option value="Sorria">Sorria</option>
+                <option value="Medic">Medic</option>
+              </select>
+              <label>Empresa Responsável *</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <input id="squad" type="text" required>
+              <label for="squad">Squad *</label>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="input-field col s12 m8">
+              <input id="municipio" type="text" required>
+              <label for="municipio">Município *</label>
+            </div>
+            <div class="input-field col s12 m4">
+              <select id="uf" required>
+                <option value="" disabled selected>UF</option>
+                <option value="AC">AC</option>
+                <option value="AL">AL</option>
+                <option value="AP">AP</option>
+                <option value="AM">AM</option>
+                <option value="BA">BA</option>
+                <option value="CE">CE</option>
+                <option value="DF">DF</option>
+                <option value="ES">ES</option>
+                <option value="GO">GO</option>
+                <option value="MA">MA</option>
+                <option value="MT">MT</option>
+                <option value="MS">MS</option>
+                <option value="MG">MG</option>
+                <option value="PA">PA</option>
+                <option value="PB">PB</option>
+                <option value="PR">PR</option>
+                <option value="PE">PE</option>
+                <option value="PI">PI</option>
+                <option value="RJ">RJ</option>
+                <option value="RN">RN</option>
+                <option value="RS">RS</option>
+                <option value="RO">RO</option>
+                <option value="RR">RR</option>
+                <option value="SC">SC</option>
+                <option value="SP">SP</option>
+                <option value="SE">SE</option>
+                <option value="TO">TO</option>
+              </select>
+              <label>UF *</label>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <select id="situacao" required>
+                <option value="" disabled selected>Escolha a situação</option>
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+                <option value="Baixada">Baixada</option>
+              </select>
+              <label>Situação *</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <input id="faturamento" type="number" step="0.01" min="0">
+              <label for="faturamento">Faturamento (R$)</label>
+            </div>
           </div>
         </div>
 
-        <div class="row">
-          <div class="input-field col s12 m6">
-            <input id="razao_social" type="text" required>
-            <label for="razao_social">Razão Social *</label>
-          </div>
-          <div class="input-field col s12 m6">
-            <input id="cpf_cnpj" type="text" required>
-            <label for="cpf_cnpj">CPF/CNPJ *</label>
+        <!-- Informações Fiscais -->
+        <div class="form-section">
+          <h6>
+            <i class="material-icons">account_balance</i>
+            Informações Fiscais
+          </h6>
+
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <select id="regime_tributacao">
+                <option value="" disabled selected>Escolha o regime</option>
+                <option value="Simples Nacional">Simples Nacional</option>
+                <option value="Lucro Presumido">Lucro Presumido</option>
+                <option value="Lucro Real">Lucro Real</option>
+                <option value="MEI">MEI</option>
+              </select>
+              <label>Regime de Tributação</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <select id="status_parcelamento">
+                <option value="" disabled selected>Escolha</option>
+                <option value="SIM">SIM</option>
+                <option value="NÃO">NÃO</option>
+              </select>
+              <label>Status Parcelamento</label>
+            </div>
           </div>
         </div>
 
-        <div class="row">
-          <div class="input-field col s12 m6">
-            <input id="municipio" type="text" required>
-            <label for="municipio">Município *</label>
+        <!-- Datas Importantes -->
+        <div class="form-section">
+          <h6>
+            <i class="material-icons">event</i>
+            Datas Importantes
+          </h6>
+
+          <div class="row">
+            <div class="input-field col s12 m4">
+              <input id="data_entrada" type="date">
+              <label for="data_entrada" class="active">Data de Entrada</label>
+            </div>
+            <div class="input-field col s12 m4">
+              <input id="data_constituicao" type="date">
+              <label for="data_constituicao" class="active">Data de Constituição</label>
+            </div>
+            <div class="input-field col s12 m4">
+              <input id="ultima_consulta_fiscal" type="date">
+              <label for="ultima_consulta_fiscal" class="active">Última Consulta Fiscal</label>
+            </div>
           </div>
-          <div class="input-field col s12 m6">
-            <select id="situacao" required>
-              <option value="" disabled selected>Escolha a situação</option>
-              <option value="Ativo">Ativo</option>
-              <option value="Inativo">Inativo</option>
-              <option value="Baixada">Baixada</option>
-            </select>
-            <label>Situação *</label>
+
+          <div class="row">
+            <div class="input-field col s12 m4">
+              <input id="vencimento_iss" type="date">
+              <label for="vencimento_iss" class="active">Vencimento ISS</label>
+            </div>
+            <div class="input-field col s12 m4">
+              <input id="prazo_efd_reinf" type="date">
+              <label for="prazo_efd_reinf" class="active">Prazo EFD-Reinf</label>
+            </div>
+            <div class="input-field col s12 m4">
+              <input id="prazo_fechamento" type="date">
+              <label for="prazo_fechamento" class="active">Prazo Fechamento</label>
+            </div>
           </div>
         </div>
 
-        <div class="row">
-          <div class="input-field col s12 m6">
-            <select id="regime_tributacao">
-              <option value="" disabled selected>Escolha o regime</option>
-              <option value="Simples Nacional">Simples Nacional</option>
-              <option value="Lucro Presumido">Lucro Presumido</option>
-              <option value="Lucro Real">Lucro Real</option>
-              <option value="MEI">MEI</option>
-            </select>
-            <label>Regime de Tributação</label>
+        <!-- Status de Regularidade -->
+        <div class="form-section">
+          <h6>
+            <i class="material-icons">verified_user</i>
+            Status de Regularidade
+          </h6>
+
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <select id="status_regularidade_federal">
+                <option value="" disabled selected>Escolha</option>
+                <option value="OK">OK</option>
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="IRREGULAR">IRREGULAR</option>
+              </select>
+              <label>Regularidade Federal</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <select id="status_regularidade_municipal">
+                <option value="" disabled selected>Escolha</option>
+                <option value="OK">OK</option>
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="IRREGULAR">IRREGULAR</option>
+              </select>
+              <label>Regularidade Municipal</label>
+            </div>
           </div>
-          <div class="input-field col s12 m6">
-            <input id="faturamento" type="number" step="0.01" min="0">
-            <label for="faturamento">Faturamento (R$)</label>
+
+          <div class="row">
+            <div class="input-field col s12 m6">
+              <select id="status_regularidade_estadual">
+                <option value="" disabled selected>Escolha</option>
+                <option value="OK">OK</option>
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="IRREGULAR">IRREGULAR</option>
+              </select>
+              <label>Regularidade Estadual</label>
+            </div>
+            <div class="input-field col s12 m6">
+              <select id="status_regularidade_conselho">
+                <option value="" disabled selected>Escolha</option>
+                <option value="OK">OK</option>
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="IRREGULAR">IRREGULAR</option>
+              </select>
+              <label>Regularidade Conselho</label>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="input-field col s12">
+              <textarea id="observacoes_regularidade" class="materialize-textarea"></textarea>
+              <label for="observacoes_regularidade">Observações de Regularidade</label>
+            </div>
           </div>
         </div>
 
-        <div class="row">
-          <div class="input-field col s12 m4">
-            <input id="data_entrada" type="date">
-            <label for="data_entrada" class="active">Data de Entrada</label>
-          </div>
-          <div class="input-field col s12 m4">
-            <input id="data_constituicao" type="date">
-            <label for="data_constituicao" class="active">Data de Constituição</label>
-          </div>
-          <div class="input-field col s12 m4">
-            <input id="ultima_consulta_fiscal" type="date">
-            <label for="ultima_consulta_fiscal" class="active">Última Consulta Fiscal</label>
-          </div>
-        </div>
+        <!-- Observações Gerais -->
+        <div class="form-section">
+          <h6>
+            <i class="material-icons">description</i>
+            Observações Gerais
+          </h6>
 
-        <div class="row">
-          <div class="input-field col s12">
-            <textarea id="observacoes" class="materialize-textarea"></textarea>
-            <label for="observacoes">Observações</label>
+          <div class="row">
+            <div class="input-field col s12">
+              <textarea id="observacoes" class="materialize-textarea"></textarea>
+              <label for="observacoes">Observações Gerais</label>
+            </div>
           </div>
         </div>
 
         <input type="hidden" id="cliente_id">
       </form>
     </div>
-    <div class="modal-footer">
-      <a href="#!" class="modal-close waves-effect waves-red btn-flat">Cancelar</a>
-      <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarCliente()">Salvar</a>
+    <div class="modal-footer" style="padding: 20px 30px; background: #f5f5f5;">
+      <a href="#!" class="modal-close waves-effect waves-red btn-flat" style="margin-right: 10px;">
+        <i class="material-icons left">close</i>Cancelar
+      </a>
+      <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarCliente()">
+        <i class="material-icons left">save</i>Salvar Cliente
+      </a>
     </div>
   </div>
 
   <!-- Modal: Visualizar Cliente -->
-  <div id="viewClienteModal" class="modal">
+  <div id="viewClienteModal" class="modal modal-fixed-footer">
     <div class="modal-content">
-      <h4>Detalhes do Cliente</h4>
       <div id="clienteDetalhes"></div>
     </div>
     <div class="modal-footer">
-      <a href="#!" class="modal-close waves-effect waves-green btn-flat">Fechar</a>
+      <a href="#!" class="waves-effect waves-green btn green" onclick="editarClienteDoModal()" style="margin-right: 10px;">
+        <i class="material-icons left">edit</i>Editar
+      </a>
+      <a href="#!" class="waves-effect waves-red btn red" onclick="deletarClienteDoModal()" style="margin-right: 10px;">
+        <i class="material-icons left">delete</i>Excluir
+      </a>
+      <a href="#!" class="modal-close waves-effect waves-grey btn-flat">Fechar</a>
     </div>
   </div>
 
   <!-- Materialize JS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
 
   <!-- Supabase JS -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 
   <!-- Configuração Supabase -->
-  <script src="supabase-config.js"></script>
+  <script src="supabase-config.js" defer></script>
 
   <!-- Lógica da Aplicação -->
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
