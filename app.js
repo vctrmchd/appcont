@@ -1,13 +1,123 @@
-// app.js - Lógica completa da aplicação
-let currentUser = null;
-let allClientes = [];
-let clienteModalInstance = null;
-let viewClienteModalInstance = null;
-let editingClienteId = null;
-let paginaAtual = 1;
-let itensPorPagina = 10;
-let clientesFiltrados = [];
-let ordenacaoAtual = { campo: 'id_cliente', direcao: 'asc' };
+// Estado centralizado da aplicação
+const appState = {
+  user: null,
+  clientes: {
+    todos: [],
+    filtrados: [],
+    exibidos: []
+  },
+  paginacao: {
+    atual: 1,
+    porPagina: 10,
+    total: 0
+  },
+  ordenacao: {
+    campo: 'id_cliente',
+    direcao: 'asc'
+  },
+  filtros: {
+    busca: '',
+    empresa: '',
+    situacao: '',
+    tributacao: '',
+    uf: ''
+  },
+  modals: {
+    cliente: null,
+    viewCliente: null
+  },
+  ui: {
+    editingClienteId: null
+  }
+};
+
+// Variável auxiliar para debounce
+let buscaTimeout = null;
+
+// ========================================
+// UTILITÁRIOS
+// ========================================
+
+/**
+ * Função de debounce - evita execuções repetidas
+ * @param {Function} func - Função a ser executada
+ * @param {Number} delay - Tempo de espera em ms
+ */
+function debounce(func, delay = 300) {
+  return function(...args) {
+    clearTimeout(buscaTimeout);
+    buscaTimeout = setTimeout(() => func.apply(this, args), delay);
+  };
+}
+
+/**
+ * Atualiza o estado e renderiza
+ */
+function atualizarEstado(atualizacao) {
+  Object.assign(appState, atualizacao);
+  renderClientes();
+}
+
+/**
+ * Aplica todos os filtros e ordenação aos clientes
+ */
+function processarClientes() {
+  let resultado = [...appState.clientes.todos];
+  
+  // Aplicar filtros
+  if (appState.filtros.busca) {
+    const termo = appState.filtros.busca.toLowerCase();
+    resultado = resultado.filter(c => 
+      (c.razao_social && c.razao_social.toLowerCase().includes(termo)) ||
+      (c.cpf_cnpj && c.cpf_cnpj.toLowerCase().includes(termo))
+    );
+  }
+  
+  if (appState.filtros.empresa) {
+    resultado = resultado.filter(c => c.empresa_responsavel === appState.filtros.empresa);
+  }
+  
+  if (appState.filtros.situacao) {
+    resultado = resultado.filter(c => c.situacao === appState.filtros.situacao);
+  }
+  
+  if (appState.filtros.tributacao) {
+    resultado = resultado.filter(c => c.regime_tributacao === appState.filtros.tributacao);
+  }
+  
+  if (appState.filtros.uf) {
+    resultado = resultado.filter(c => c.uf === appState.filtros.uf);
+  }
+  
+  // Aplicar ordenação
+  resultado.sort((a, b) => {
+    let valorA = a[appState.ordenacao.campo];
+    let valorB = b[appState.ordenacao.campo];
+    
+    if (valorA === null || valorA === undefined) valorA = '';
+    if (valorB === null || valorB === undefined) valorB = '';
+    
+    valorA = String(valorA).toLowerCase();
+    valorB = String(valorB).toLowerCase();
+    
+    if (appState.ordenacao.direcao === 'asc') {
+      return valorA > valorB ? 1 : valorA < valorB ? -1 : 0;
+    } else {
+      return valorA < valorB ? 1 : valorA > valorB ? -1 : 0;
+    }
+  });
+  
+  appState.clientes.filtrados = resultado;
+  appState.paginacao.total = Math.ceil(resultado.length / appState.paginacao.porPagina);
+  
+  // Garantir que a página atual seja válida
+  if (appState.paginacao.atual > appState.paginacao.total && appState.paginacao.total > 0) {
+    appState.paginacao.atual = appState.paginacao.total;
+  }
+  if (appState.paginacao.atual < 1) {
+    appState.paginacao.atual = 1;
+  }
+}
 
 // ========================================
 // INICIALIZAÇÃO
@@ -20,14 +130,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const viewClienteModalEl = document.getElementById('viewClienteModal');
   
   if (clienteModalEl) {
-    clienteModalInstance = M.Modal.init(clienteModalEl, {
+    appState.modals.cliente = M.Modal.init(clienteModalEl, {
       dismissible: true,
       onCloseEnd: resetClienteForm
     });
   }
   
   if (viewClienteModalEl) {
-    viewClienteModalInstance = M.Modal.init(viewClienteModalEl);
+    appState.modals.viewCliente = M.Modal.init(viewClienteModalEl);
   }
   
   M.FormSelect.init(document.querySelectorAll('select'));
@@ -58,9 +168,9 @@ async function loadUser() {
     
     if (error) throw error;
     
-    currentUser = data;
+    appState.user = data;
     document.getElementById('userEmailDisplay').textContent = `${data.email} (${data.papel})`;
-    console.log('✅ Usuário carregado:', currentUser.email);
+    console.log('✅ Usuário carregado:', appState.user.email);
     
     if (data.papel !== 'Administrador') {
       const usuariosSection = document.getElementById('usuariosSection');
@@ -92,7 +202,7 @@ function showClientes() {
 }
 
 function showUsuarios() {
-  if (currentUser && currentUser.papel === 'Administrador') {
+  if (appState.user && appState.user.papel === 'Administrador') {
     hideAllSections();
     document.getElementById('usuariosSection').classList.remove('hidden');
     loadUsuarios();
@@ -102,7 +212,7 @@ function showUsuarios() {
 }
 
 function showAuditoria() {
-  if (currentUser && currentUser.papel === 'Administrador') {
+  if (appState.user && appState.user.papel === 'Administrador') {
     hideAllSections();
     document.getElementById('auditoriaSection').classList.remove('hidden');
     loadAuditoria();
@@ -200,34 +310,38 @@ async function loadClientes() {
     
     if (error) throw error;
     console.log(`✅ ${data.length} clientes carregados`);
-    allClientes = data;
-    renderClientes(data);
+    
+    appState.clientes.todos = data;
+    appState.paginacao.atual = 1;
+    processarClientes();
+    renderClientes();
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar clientes', classes: 'red'});
   }
 }
 
-function renderClientes(clientes) {
+function renderClientes() {
   const tbody = document.getElementById('clientesTableBody');
   if (!tbody) return;
   
-  clientesFiltrados = clientes;
-  
-  // Calcular paginação
-  const totalPaginas = Math.ceil(clientes.length / itensPorPagina);
-  const inicio = (paginaAtual - 1) * itensPorPagina;
-  const fim = inicio + itensPorPagina;
-  const clientesPagina = clientes.slice(inicio, fim);
+  const clientes = appState.clientes.filtrados;
   
   tbody.innerHTML = '';
   
   if (clientes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="center-align">Nenhum cliente</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="center-align">Nenhum cliente encontrado</td></tr>';
     document.getElementById('paginacao').innerHTML = '';
     document.getElementById('infoPaginacao').textContent = '';
     return;
   }
+  
+  // Calcular paginação
+  const inicio = (appState.paginacao.atual - 1) * appState.paginacao.porPagina;
+  const fim = inicio + appState.paginacao.porPagina;
+  const clientesPagina = clientes.slice(inicio, fim);
+  
+  appState.clientes.exibidos = clientesPagina;
   
   clientesPagina.forEach(cliente => {
     const row = tbody.insertRow();
@@ -247,16 +361,16 @@ function renderClientes(clientes) {
     `;
   });
   
-  // Renderizar paginação
-  renderPaginacao(totalPaginas, clientes.length);
-  
-  // Inicializar tooltips
+  renderPaginacao();
   M.Tooltip.init(document.querySelectorAll('.tooltipped'));
 }
 
-function renderPaginacao(totalPaginas, totalClientes) {
+function renderPaginacao() {
   const paginacaoEl = document.getElementById('paginacao');
   const infoPaginacaoEl = document.getElementById('infoPaginacao');
+  const totalClientes = appState.clientes.filtrados.length;
+  const totalPaginas = appState.paginacao.total;
+  const paginaAtual = appState.paginacao.atual;
   
   if (totalPaginas <= 1) {
     paginacaoEl.innerHTML = '';
@@ -266,12 +380,10 @@ function renderPaginacao(totalPaginas, totalClientes) {
   
   let html = '';
   
-  // Botão anterior
   html += `<li class="${paginaAtual === 1 ? 'disabled' : 'waves-effect'}">
     <a href="#!" onclick="mudarPagina(${paginaAtual - 1})"><i class="material-icons">chevron_left</i></a>
   </li>`;
   
-  // Números das páginas
   for (let i = 1; i <= totalPaginas; i++) {
     if (i === 1 || i === totalPaginas || (i >= paginaAtual - 2 && i <= paginaAtual + 2)) {
       html += `<li class="${i === paginaAtual ? 'active blue' : 'waves-effect'}">
@@ -282,43 +394,48 @@ function renderPaginacao(totalPaginas, totalClientes) {
     }
   }
   
-  // Botão próximo
   html += `<li class="${paginaAtual === totalPaginas ? 'disabled' : 'waves-effect'}">
     <a href="#!" onclick="mudarPagina(${paginaAtual + 1})"><i class="material-icons">chevron_right</i></a>
   </li>`;
   
   paginacaoEl.innerHTML = html;
   
-  const inicio = (paginaAtual - 1) * itensPorPagina + 1;
-  const fim = Math.min(paginaAtual * itensPorPagina, totalClientes);
+  const inicio = (paginaAtual - 1) * appState.paginacao.porPagina + 1;
+  const fim = Math.min(paginaAtual * appState.paginacao.porPagina, totalClientes);
   infoPaginacaoEl.textContent = `Mostrando ${inicio} a ${fim} de ${totalClientes} cliente(s) | Página ${paginaAtual} de ${totalPaginas}`;
 }
 
 function mudarPagina(novaPagina) {
-  const totalPaginas = Math.ceil(clientesFiltrados.length / itensPorPagina);
-  if (novaPagina < 1 || novaPagina > totalPaginas) return;
+  if (novaPagina < 1 || novaPagina > appState.paginacao.total) return;
   
-  paginaAtual = novaPagina;
-  renderClientes(clientesFiltrados);
+  appState.paginacao.atual = novaPagina;
+  renderClientes();
   
-  // Scroll suave para o topo da tabela
   document.getElementById('clientesTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// Função de busca com debounce
+const filterClientesDebounced = debounce(function() {
+  appState.filtros.busca = document.getElementById('searchCliente').value;
+  appState.paginacao.atual = 1;
+  processarClientes();
+  renderClientes();
+}, 300);
+
 function filterClientes() {
-  aplicarFiltros(); // Usar a função de filtros avançados
+  filterClientesDebounced();
 }
 
 function openNovoClienteModal() {
   console.log('➕ Novo cliente');
-  editingClienteId = null;
+  appState.ui.editingClienteId = null;
   resetClienteForm();
   document.getElementById('clienteModalTitle').textContent = 'Novo Cliente';
   setTimeout(() => {
     M.FormSelect.init(document.querySelectorAll('select'));
     M.updateTextFields();
   }, 100);
-  if (clienteModalInstance) clienteModalInstance.open();
+  if (appState.modals.cliente) appState.modals.cliente.open();
 }
 
 async function editCliente(id_cliente) {
@@ -332,7 +449,7 @@ async function editCliente(id_cliente) {
     
     if (error) throw error;
     
-    editingClienteId = id_cliente;
+    appState.ui.editingClienteId = id_cliente;
     document.getElementById('clienteModalTitle').textContent = 'Editar Cliente';
     
     document.getElementById('cliente_id').value = data.id_cliente;
@@ -366,7 +483,7 @@ async function editCliente(id_cliente) {
       M.textareaAutoResize(document.getElementById('observacoes_regularidade'));
     }, 100);
     
-    if (clienteModalInstance) clienteModalInstance.open();
+    if (appState.modals.cliente) appState.modals.cliente.open();
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar cliente', classes: 'red'});
@@ -405,15 +522,15 @@ async function salvarCliente() {
       return;
     }
 
-    if (editingClienteId) {
+    if (appState.ui.editingClienteId) {
       const { error } = await supabaseClient
         .from('clientes')
         .update(clienteData)
-        .eq('id_cliente', editingClienteId);
+        .eq('id_cliente', appState.ui.editingClienteId);
       
       if (error) throw error;
       
-      await logAuditoria('CLIENTE_ATUALIZADO', editingClienteId, `Cliente ${clienteData.razao_social} atualizado`);
+      await logAuditoria('CLIENTE_ATUALIZADO', appState.ui.editingClienteId, `Cliente ${clienteData.razao_social} atualizado`);
       M.toast({html: 'Cliente atualizado com sucesso!', classes: 'green'});
     } else {
       const { error } = await supabaseClient
@@ -426,7 +543,7 @@ async function salvarCliente() {
       M.toast({html: 'Cliente criado com sucesso!', classes: 'green'});
     }
 
-    if (clienteModalInstance) clienteModalInstance.close();
+    if (appState.modals.cliente) appState.modals.cliente.close();
     loadClientes();
   } catch (error) {
     console.error('❌ Erro ao salvar:', error);
@@ -634,7 +751,7 @@ async function viewCliente(id_cliente) {
     `;
     
     document.getElementById('clienteDetalhes').innerHTML = detalhesHtml;
-    if (viewClienteModalInstance) viewClienteModalInstance.open();
+    if (appState.modals.viewCliente) appState.modals.viewCliente.open();
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao visualizar', classes: 'red'});
@@ -644,21 +761,21 @@ async function viewCliente(id_cliente) {
 // Funções para os botões do modal de visualização
 function editarClienteDoModal() {
   if (window.currentViewingClienteId) {
-    if (viewClienteModalInstance) viewClienteModalInstance.close();
+    if (appState.modals.viewCliente) appState.modals.viewCliente.close();
     editCliente(window.currentViewingClienteId);
   }
 }
 
 function deletarClienteDoModal() {
   if (window.currentViewingClienteId) {
-    if (viewClienteModalInstance) viewClienteModalInstance.close();
+    if (appState.modals.viewCliente) appState.modals.viewCliente.close();
     deleteCliente(window.currentViewingClienteId);
   }
 }
 
 function resetClienteForm() {
   document.getElementById('clienteForm').reset();
-  editingClienteId = null;
+  appState.ui.editingClienteId = null;
   M.updateTextFields();
 }
 
@@ -675,43 +792,15 @@ function toggleFiltros() {
 }
 
 function aplicarFiltros() {
-  const filtroEmpresa = document.getElementById('filtroEmpresa').value;
-  const filtroSituacao = document.getElementById('filtroSituacao').value;
-  const filtroTributacao = document.getElementById('filtroTributacao').value;
-  const filtroUF = document.getElementById('filtroUF').value;
-  const searchTerm = document.getElementById('searchCliente').value.toLowerCase();
+  appState.filtros.empresa = document.getElementById('filtroEmpresa').value;
+  appState.filtros.situacao = document.getElementById('filtroSituacao').value;
+  appState.filtros.tributacao = document.getElementById('filtroTributacao').value;
+  appState.filtros.uf = document.getElementById('filtroUF').value;
+  appState.filtros.busca = document.getElementById('searchCliente').value;
   
-  let filtered = allClientes.filter(cliente => {
-    let match = true;
-    
-    if (searchTerm) {
-      match = match && (
-        (cliente.razao_social && cliente.razao_social.toLowerCase().includes(searchTerm)) ||
-        (cliente.cpf_cnpj && cliente.cpf_cnpj.toLowerCase().includes(searchTerm))
-      );
-    }
-    
-    if (filtroEmpresa) {
-      match = match && cliente.empresa_responsavel === filtroEmpresa;
-    }
-    
-    if (filtroSituacao) {
-      match = match && cliente.situacao === filtroSituacao;
-    }
-    
-    if (filtroTributacao) {
-      match = match && cliente.regime_tributacao === filtroTributacao;
-    }
-    
-    if (filtroUF) {
-      match = match && cliente.uf === filtroUF;
-    }
-    
-    return match;
-  });
-  
-  paginaAtual = 1;
-  renderClientes(filtered);
+  appState.paginacao.atual = 1;
+  processarClientes();
+  renderClientes();
 }
 
 function limparFiltros() {
@@ -721,44 +810,36 @@ function limparFiltros() {
   document.getElementById('filtroUF').value = '';
   document.getElementById('searchCliente').value = '';
   
+  appState.filtros = {
+    busca: '',
+    empresa: '',
+    situacao: '',
+    tributacao: '',
+    uf: ''
+  };
+  
   M.FormSelect.init(document.querySelectorAll('#filtrosAvancados select'));
   M.updateTextFields();
   
-  paginaAtual = 1;
-  renderClientes(allClientes);
+  appState.paginacao.atual = 1;
+  processarClientes();
+  renderClientes();
 }
 
 // ========================================
 // ORDENAÇÃO
 // ========================================
 function ordenarPor(campo) {
-  if (ordenacaoAtual.campo === campo) {
-    ordenacaoAtual.direcao = ordenacaoAtual.direcao === 'asc' ? 'desc' : 'asc';
+  if (appState.ordenacao.campo === campo) {
+    appState.ordenacao.direcao = appState.ordenacao.direcao === 'asc' ? 'desc' : 'asc';
   } else {
-    ordenacaoAtual.campo = campo;
-    ordenacaoAtual.direcao = 'asc';
+    appState.ordenacao.campo = campo;
+    appState.ordenacao.direcao = 'asc';
   }
   
-  const clientesOrdenados = [...clientesFiltrados].sort((a, b) => {
-    let valorA = a[campo];
-    let valorB = b[campo];
-    
-    if (valorA === null || valorA === undefined) valorA = '';
-    if (valorB === null || valorB === undefined) valorB = '';
-    
-    valorA = String(valorA).toLowerCase();
-    valorB = String(valorB).toLowerCase();
-    
-    if (ordenacaoAtual.direcao === 'asc') {
-      return valorA > valorB ? 1 : valorA < valorB ? -1 : 0;
-    } else {
-      return valorA < valorB ? 1 : valorA > valorB ? -1 : 0;
-    }
-  });
-  
-  paginaAtual = 1;
-  renderClientes(clientesOrdenados);
-  clientesFiltrados = clientesOrdenados;
+  appState.paginacao.atual = 1;
+  processarClientes();
+  renderClientes();
 }
 
 // ========================================
@@ -767,18 +848,18 @@ function ordenarPor(campo) {
 function exportarCSV() {
   try {
     const tbody = document.getElementById('clientesTableBody');
-    const clientesVisiveis = [];
+    const clientesFiltrados = [];  
     
     const rows = tbody.getElementsByTagName('tr');
     if (rows.length > 0 && rows[0].cells.length > 1) {
       for (let row of rows) {
         const id = parseInt(row.cells[0].textContent);
-        const cliente = allClientes.find(c => c.id_cliente === id);
-        if (cliente) clientesVisiveis.push(cliente);
+        const cliente = appState.clientes.todos.find(c => c.id_cliente === id);
+        if (cliente) appState.clientes.filtrados.push(cliente);
       }
     }
     
-    const dadosExportar = clientesVisiveis.length > 0 ? clientesVisiveis : allClientes;
+    const dadosExportar = appState.clientes.filtrados.length > 0 ? appState.clientes.filtrados : appState.clientes.todos;
     
     if (dadosExportar.length === 0) {
       M.toast({html: 'Nenhum cliente para exportar', classes: 'orange'});
@@ -842,22 +923,22 @@ function exportarCSV() {
   }
 }
 
-function exportarExcel() {
+function exportarCSV() {
   try {
     const tbody = document.getElementById('clientesTableBody');
-    const clientesVisiveis = [];
+    const clientesFiltrados = [];
     
     const rows = tbody.getElementsByTagName('tr');
     if (rows.length > 0 && rows[0].cells.length > 1) {
       for (let row of rows) {
         const id = parseInt(row.cells[0].textContent);
-        const cliente = allClientes.find(c => c.id_cliente === id);
-        if (cliente) clientesVisiveis.push(cliente);
+        const cliente = appState.clientes.todos.find(c => c.id_cliente === id);
+        if (cliente) clientesFiltrados.push(cliente);
       }
     }
     
-    const dadosExportar = clientesVisiveis.length > 0 ? clientesVisiveis : allClientes;
-    
+    const dadosExportar = clientesFiltrados.length > 0 ? clientesFiltrados : appState.clientes.todos;
+
     if (dadosExportar.length === 0) {
       M.toast({html: 'Nenhum cliente para exportar', classes: 'orange'});
       return;
@@ -1034,9 +1115,9 @@ async function loadAuditoria() {
 
 async function logAuditoria(acao, id_cliente_afetado, detalhes) {
   try {
-    if (!currentUser) return;
+    if (!appState.user) return;
     const { error } = await supabaseClient.from('auditoria').insert([{
-      email_usuario: currentUser.email,
+      email_usuario: appState.user.email,
       acao: acao,
       id_cliente_afetado: id_cliente_afetado,
       detalhes: detalhes
