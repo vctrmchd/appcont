@@ -24,15 +24,23 @@ const appState = {
   },
   modals: {
     cliente: null,
-    viewCliente: null
+    viewCliente: null,
+    historico: null
   },
   ui: {
     editingClienteId: null
+  },
+  notificacoes: {
+    lista: [],
+    naoLidas: 0
   }
 };
 
 // Variável auxiliar para debounce
 let buscaTimeout = null;
+
+// Intervalo para verificação de notificações
+let notificationInterval = null;
 
 // ========================================
 // UTILITÁRIOS
@@ -40,22 +48,12 @@ let buscaTimeout = null;
 
 /**
  * Função de debounce - evita execuções repetidas
- * @param {Function} func - Função a ser executada
- * @param {Number} delay - Tempo de espera em ms
  */
 function debounce(func, delay = 300) {
   return function(...args) {
     clearTimeout(buscaTimeout);
     buscaTimeout = setTimeout(() => func.apply(this, args), delay);
   };
-}
-
-/**
- * Atualiza o estado e renderiza
- */
-function atualizarEstado(atualizacao) {
-  Object.assign(appState, atualizacao);
-  renderClientes();
 }
 
 /**
@@ -128,6 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
   
   const clienteModalEl = document.getElementById('clienteModal');
   const viewClienteModalEl = document.getElementById('viewClienteModal');
+  const historicoModalEl = document.getElementById('historicoModal');
   
   if (clienteModalEl) {
     appState.modals.cliente = M.Modal.init(clienteModalEl, {
@@ -138,6 +137,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   if (viewClienteModalEl) {
     appState.modals.viewCliente = M.Modal.init(viewClienteModalEl);
+  }
+  
+  if (historicoModalEl) {
+    appState.modals.historico = M.Modal.init(historicoModalEl);
   }
   
   M.FormSelect.init(document.querySelectorAll('select'));
@@ -151,6 +154,10 @@ document.addEventListener('DOMContentLoaded', function() {
   
   loadUser();
   showDashboard();
+  
+  // Iniciar verificação de notificações a cada 5 minutos
+  verificarNotificacoes();
+  notificationInterval = setInterval(verificarNotificacoes, 5 * 60 * 1000);
 });
 
 // ========================================
@@ -227,6 +234,759 @@ function hideAllSections() {
 }
 
 // ========================================
+// NOTIFICAÇÕES
+// ========================================
+
+/**
+ * Verifica vencimentos próximos e cria notificações
+ */
+async function verificarNotificacoes() {
+  try {
+    const { data: clientes, error } = await supabaseClient
+      .from('clientes')
+      .select('*')
+      .eq('situacao', 'Ativo');
+    
+    if (error) throw error;
+    
+    const hoje = new Date();
+    const notificacoes = [];
+    
+    clientes.forEach(cliente => {
+      // Verificar ISS
+      if (cliente.vencimento_iss) {
+        const vencimento = new Date(cliente.vencimento_iss);
+        const diasRestantes = Math.ceil((vencimento - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diasRestantes >= 0 && diasRestantes <= 7) {
+          notificacoes.push({
+            id: `iss_${cliente.id_cliente}`,
+            tipo: diasRestantes <= 3 ? 'danger' : 'warning',
+            titulo: 'Vencimento ISS Próximo',
+            mensagem: `${cliente.razao_social} - Vence em ${diasRestantes} dia(s)`,
+            cliente_id: cliente.id_cliente,
+            data: vencimento,
+            lida: false
+          });
+        }
+      }
+      
+      // Verificar EFD-Reinf
+      if (cliente.prazo_efd_reinf) {
+        const prazo = new Date(cliente.prazo_efd_reinf);
+        const diasRestantes = Math.ceil((prazo - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diasRestantes >= 0 && diasRestantes <= 7) {
+          notificacoes.push({
+            id: `efd_${cliente.id_cliente}`,
+            tipo: diasRestantes <= 3 ? 'danger' : 'warning',
+            titulo: 'Prazo EFD-Reinf Próximo',
+            mensagem: `${cliente.razao_social} - Vence em ${diasRestantes} dia(s)`,
+            cliente_id: cliente.id_cliente,
+            data: prazo,
+            lida: false
+          });
+        }
+      }
+      
+      // Verificar Prazo de Fechamento
+      if (cliente.prazo_fechamento) {
+        const prazo = new Date(cliente.prazo_fechamento);
+        const diasRestantes = Math.ceil((prazo - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diasRestantes >= 0 && diasRestantes <= 5) {
+          notificacoes.push({
+            id: `fechamento_${cliente.id_cliente}`,
+            tipo: diasRestantes <= 2 ? 'danger' : 'warning',
+            titulo: 'Prazo de Fechamento Próximo',
+            mensagem: `${cliente.razao_social} - Vence em ${diasRestantes} dia(s)`,
+            cliente_id: cliente.id_cliente,
+            data: prazo,
+            lida: false
+          });
+        }
+      }
+      
+      // Verificar regularidade
+      const statusIrregulares = [
+        cliente.status_regularidade_federal,
+        cliente.status_regularidade_municipal,
+        cliente.status_regularidade_estadual,
+        cliente.status_regularidade_conselho
+      ].filter(status => status === 'IRREGULAR' || status === 'PENDENTE');
+      
+      if (statusIrregulares.length > 0) {
+        notificacoes.push({
+          id: `regularidade_${cliente.id_cliente}`,
+          tipo: 'info',
+          titulo: 'Pendência Fiscal',
+          mensagem: `${cliente.razao_social} - ${statusIrregulares.length} pendência(s)`,
+          cliente_id: cliente.id_cliente,
+          data: new Date(),
+          lida: false
+        });
+      }
+    });
+    
+    // Ordenar por data (mais próximas primeiro)
+    notificacoes.sort((a, b) => a.data - b.data);
+    
+    appState.notificacoes.lista = notificacoes;
+    appState.notificacoes.naoLidas = notificacoes.filter(n => !n.lida).length;
+    
+    renderNotificacoes();
+  } catch (error) {
+    console.error('❌ Erro ao verificar notificações:', error);
+  }
+}
+
+/**
+ * Renderiza as notificações no dropdown
+ */
+function renderNotificacoes() {
+  const notificationsList = document.getElementById('notificationsList');
+  const notificationCount = document.getElementById('notificationCount');
+  
+  if (appState.notificacoes.naoLidas > 0) {
+    notificationCount.textContent = appState.notificacoes.naoLidas;
+    notificationCount.style.display = 'block';
+  } else {
+    notificationCount.style.display = 'none';
+  }
+  
+  if (appState.notificacoes.lista.length === 0) {
+    notificationsList.innerHTML = `
+      <div class="notification-empty">
+        <i class="material-icons" style="font-size: 48px; color: #bdbdbd;">notifications_none</i>
+        <p>Nenhuma notificação</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = '';
+  appState.notificacoes.lista.forEach(notif => {
+    const iconClass = notif.tipo === 'danger' ? 'danger' : notif.tipo === 'warning' ? 'warning' : 'info';
+    const iconName = notif.tipo === 'danger' ? 'error' : notif.tipo === 'warning' ? 'warning' : 'info';
+    const unreadClass = notif.lida ? '' : 'unread';
+    
+    const tempoDecorrido = calcularTempoDecorrido(notif.data);
+    
+    html += `
+      <div class="notification-item ${unreadClass}" onclick="abrirNotificacao(${notif.cliente_id}, '${notif.id}')">
+        <i class="material-icons notification-icon ${iconClass}">${iconName}</i>
+        <div style="display: inline-block; vertical-align: top; width: calc(100% - 40px);">
+          <div class="notification-title">${notif.titulo}</div>
+          <div class="notification-message">${notif.mensagem}</div>
+          <div class="notification-time">${tempoDecorrido}</div>
+        </div>
+      </div>
+    `;
+  });
+  
+  notificationsList.innerHTML = html;
+}
+
+/**
+ * Calcula tempo decorrido em formato legível
+ */
+function calcularTempoDecorrido(data) {
+  const agora = new Date();
+  const diff = data - agora;
+  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
+  
+  if (dias < 0) {
+    return 'Vencido';
+  } else if (dias === 0) {
+    return 'Hoje';
+  } else if (dias === 1) {
+    return 'Amanhã';
+  } else {
+    return `Em ${dias} dias`;
+  }
+}
+
+/**
+ * Abre detalhes do cliente ao clicar na notificação
+ */
+async function abrirNotificacao(clienteId, notifId) {
+  // Marcar como lida
+  const notif = appState.notificacoes.lista.find(n => n.id === notifId);
+  if (notif && !notif.lida) {
+    notif.lida = true;
+    appState.notificacoes.naoLidas--;
+    renderNotificacoes();
+  }
+  
+  // Abrir cliente
+  await viewCliente(clienteId);
+}
+
+/**
+ * Marca todas as notificações como lidas
+ */
+function marcarTodasLidas() {
+  appState.notificacoes.lista.forEach(n => n.lida = true);
+  appState.notificacoes.naoLidas = 0;
+  renderNotificacoes();
+  M.toast({html: 'Todas as notificações foram marcadas como lidas', classes: 'green'});
+}
+
+// ========================================
+// HISTÓRICO DE ALTERAÇÕES
+// ========================================
+
+/**
+ * Registra uma alteração no histórico
+ */
+async function registrarHistorico(idCliente, tipoAlteracao, alteracoes, observacao = null) {
+  try {
+    if (!appState.user) return;
+    
+    const registros = [];
+    
+    if (tipoAlteracao === 'CRIACAO') {
+      registros.push({
+        id_cliente: idCliente,
+        email_usuario: appState.user.email,
+        tipo_alteracao: 'CRIACAO',
+        campo_alterado: null,
+        valor_anterior: null,
+        valor_novo: null,
+        observacao: observacao || 'Cliente criado'
+      });
+    } else if (tipoAlteracao === 'EDICAO' && alteracoes) {
+      for (const [campo, valores] of Object.entries(alteracoes)) {
+        registros.push({
+          id_cliente: idCliente,
+          email_usuario: appState.user.email,
+          tipo_alteracao: 'EDICAO',
+          campo_alterado: campo,
+          valor_anterior: valores.anterior,
+          valor_novo: valores.novo,
+          observacao: observacao
+        });
+      }
+    } else if (tipoAlteracao === 'EXCLUSAO') {
+      registros.push({
+        id_cliente: idCliente,
+        email_usuario: appState.user.email,
+        tipo_alteracao: 'EXCLUSAO',
+        campo_alterado: null,
+        valor_anterior: null,
+        valor_novo: null,
+        observacao: observacao || 'Cliente excluído'
+      });
+    }
+    
+    if (registros.length > 0) {
+      const { error } = await supabaseClient
+        .from('historico_alteracoes')
+        .insert(registros);
+      
+      if (error) throw error;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao registrar histórico:', error);
+  }
+}
+
+/**
+ * Carrega e exibe o histórico de um cliente
+ */
+async function verHistoricoCliente() {
+  if (!window.currentViewingClienteId) return;
+  
+  try {
+    // Fechar modal de visualização
+    if (appState.modals.viewCliente) appState.modals.viewCliente.close();
+    
+    // Abrir modal de histórico
+    if (appState.modals.historico) appState.modals.historico.open();
+    
+    setTimeout(() => {
+      const modalContent = document.querySelector('#historicoModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
+
+    // Carregar histórico
+    const { data: historico, error } = await supabaseClient
+      .from('historico_alteracoes')
+      .select('*')
+      .eq('id_cliente', window.currentViewingClienteId)
+      .order('timestamp', { ascending: false });
+    
+    if (error) throw error;
+    
+    // Carregar dados do cliente
+    const { data: cliente, error: clienteError } = await supabaseClient
+      .from('clientes')
+      .select('razao_social')
+      .eq('id_cliente', window.currentViewingClienteId)
+      .single();
+    
+    if (clienteError) throw clienteError;
+    
+    renderHistorico(historico, cliente.razao_social);
+  } catch (error) {
+    console.error('❌ Erro ao carregar histórico:', error);
+    M.toast({html: 'Erro ao carregar histórico', classes: 'red'});
+  }
+}
+
+/**
+ * Renderiza o histórico no modal
+ */
+function renderHistorico(historico, razaoSocial) {
+  const historicoContent = document.getElementById('historicoContent');
+  
+  if (historico.length === 0) {
+    historicoContent.innerHTML = `
+      <div class="center-align" style="padding: 40px;">
+        <i class="material-icons" style="font-size: 64px; color: #bdbdbd;">history</i>
+        <p style="color: #757575; margin-top: 20px;">Nenhuma alteração registrada para este cliente.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = `
+    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <h6 style="margin: 0; color: #1976d2;">
+        <i class="material-icons" style="vertical-align: middle;">business</i>
+        ${razaoSocial}
+      </h6>
+      <p style="margin: 5px 0 0 0; color: #616161; font-size: 14px;">
+        Total de ${historico.length} registro(s) de alteração
+      </p>
+    </div>
+    <div class="timeline">
+  `;
+  
+  historico.forEach(registro => {
+    const data = new Date(registro.timestamp);
+    const dataFormatada = data.toLocaleString('pt-BR');
+    
+    let iconClass = 'edit';
+    let iconName = 'edit';
+    let titulo = 'Edição';
+    
+    if (registro.tipo_alteracao === 'CRIACAO') {
+      iconClass = 'create';
+      iconName = 'add_circle';
+      titulo = 'Criação';
+    } else if (registro.tipo_alteracao === 'EXCLUSAO') {
+      iconClass = 'delete';
+      iconName = 'delete';
+      titulo = 'Exclusão';
+    }
+    
+    html += `
+      <div class="timeline-item">
+        <div class="timeline-icon ${iconClass}">
+          <i class="material-icons">${iconName}</i>
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-header">
+            <span class="timeline-title">${titulo}</span>
+            <span class="timeline-time">${dataFormatada}</span>
+          </div>
+          <div class="timeline-user">
+            <i class="material-icons tiny" style="vertical-align: middle;">person</i>
+            ${registro.email_usuario}
+          </div>
+    `;
+    
+    if (registro.campo_alterado) {
+      const labelCampo = formatarNomeCampo(registro.campo_alterado);
+      html += `
+        <div class="timeline-changes">
+          <div class="timeline-change-item">
+            <span class="timeline-change-label">${labelCampo}:</span><br>
+            <span class="timeline-change-old">${registro.valor_anterior || '(vazio)'}</span>
+            →
+            <span class="timeline-change-new">${registro.valor_novo || '(vazio)'}</span>
+          </div>
+        </div>
+      `;
+    }
+    
+    if (registro.observacao) {
+      html += `
+        <div style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; font-size: 14px;">
+          <i class="material-icons tiny" style="vertical-align: middle;">info</i>
+          ${registro.observacao}
+        </div>
+      `;
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  historicoContent.innerHTML = html;
+}
+
+/**
+ * Formata o nome do campo para exibição
+ */
+function formatarNomeCampo(campo) {
+  const mapeamento = {
+    'razao_social': 'Razão Social',
+    'cpf_cnpj': 'CPF/CNPJ',
+    'empresa_responsavel': 'Empresa Responsável',
+    'squad': 'Squad',
+    'municipio': 'Município',
+    'uf': 'UF',
+    'situacao': 'Situação',
+    'regime_tributacao': 'Regime de Tributação',
+    'faturamento': 'Faturamento',
+    'status_parcelamento': 'Status Parcelamento',
+    'data_entrada': 'Data de Entrada',
+    'data_constituicao': 'Data de Constituição',
+    'ultima_consulta_fiscal': 'Última Consulta Fiscal',
+    'vencimento_iss': 'Vencimento ISS',
+    'prazo_efd_reinf': 'Prazo EFD-Reinf',
+    'prazo_fechamento': 'Prazo Fechamento',
+    'status_regularidade_federal': 'Regularidade Federal',
+    'status_regularidade_municipal': 'Regularidade Municipal',
+    'status_regularidade_estadual': 'Regularidade Estadual',
+    'status_regularidade_conselho': 'Regularidade Conselho',
+    'observacoes_regularidade': 'Observações de Regularidade',
+    'observacoes': 'Observações'
+  };
+  
+  return mapeamento[campo] || campo;
+}
+
+/**
+ * Compara dados antigos e novos para detectar alterações
+ */
+function detectarAlteracoes(dadosAntigos, dadosNovos) {
+  const alteracoes = {};
+  
+  const camposMonitorados = [
+    'razao_social', 'cpf_cnpj', 'empresa_responsavel', 'squad', 'municipio', 'uf',
+    'situacao', 'regime_tributacao', 'faturamento', 'status_parcelamento',
+    'data_entrada', 'data_constituicao', 'ultima_consulta_fiscal',
+    'vencimento_iss', 'prazo_efd_reinf', 'prazo_fechamento',
+    'status_regularidade_federal', 'status_regularidade_municipal',
+    'status_regularidade_estadual', 'status_regularidade_conselho',
+    'observacoes_regularidade', 'observacoes'
+  ];
+  
+  camposMonitorados.forEach(campo => {
+    const valorAntigo = dadosAntigos[campo];
+    const valorNovo = dadosNovos[campo];
+    
+    // Converter null para string vazia para comparação
+    const antigoStr = valorAntigo === null || valorAntigo === undefined ? '' : String(valorAntigo);
+    const novoStr = valorNovo === null || valorNovo === undefined ? '' : String(valorNovo);
+    
+    if (antigoStr !== novoStr) {
+      alteracoes[campo] = {
+        anterior: valorAntigo,
+        novo: valorNovo
+      };
+    }
+  });
+  
+  return alteracoes;
+}
+
+// ========================================
+// COMENTÁRIOS
+// ========================================
+
+/**
+ * Carrega comentários de um cliente
+ */
+async function carregarComentarios(idCliente) {
+  try {
+    const { data, error } = await supabaseClient
+      .from('comentarios_clientes')
+      .select('*')
+      .eq('id_cliente', idCliente)
+      .order('timestamp', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao carregar comentários:', error);
+    return [];
+  }
+}
+
+/**
+ * Renderiza comentários no modal
+ */
+function renderComentarios(comentarios, idCliente) {
+  const container = document.getElementById('comentariosContainer');
+  if (!container) return;
+  
+  let html = `
+    <div class="comentarios-section">
+      <h6>
+        <i class="material-icons">comment</i>
+        Comentários
+        ${comentarios.length > 0 ? `<span class="badge-comentarios">${comentarios.length}</span>` : ''}
+      </h6>
+      
+      <!-- Formulário de novo comentário -->
+      <div class="comentario-form">
+        <textarea 
+          id="novoComentario" 
+          placeholder="Adicione um comentário sobre este cliente..."
+          maxlength="1000"
+        ></textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="color: #9e9e9e; font-size: 12px;">
+            <span id="charCount">0</span>/1000 caracteres
+          </span>
+          <button 
+            class="btn blue waves-effect waves-light" 
+            onclick="adicionarComentario(${idCliente})"
+            style="padding: 0 20px; height: 36px; line-height: 36px;">
+            <i class="material-icons left" style="margin-right: 8px;">send</i>
+            Enviar
+          </button>
+        </div>
+      </div>
+      
+      <!-- Lista de comentários -->
+      <div class="comentarios-lista" id="listaComentarios">
+  `;
+  
+  if (comentarios.length === 0) {
+    html += `
+      <div class="comentarios-vazio">
+        <i class="material-icons">chat_bubble_outline</i>
+        <p>Nenhum comentário ainda. Seja o primeiro a comentar!</p>
+      </div>
+    `;
+  } else {
+    comentarios.forEach(comentario => {
+      const data = new Date(comentario.timestamp);
+      const dataFormatada = data.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const iniciais = comentario.nome_usuario
+        ? comentario.nome_usuario.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+        : comentario.email_usuario.substring(0, 2).toUpperCase();
+      
+      const podeEditar = appState.user && appState.user.email === comentario.email_usuario;
+      
+      html += `
+        <div class="comentario-item" id="comentario-${comentario.id}">
+          <div class="comentario-header">
+            <div class="comentario-autor">
+              <div class="comentario-avatar">${iniciais}</div>
+              <div class="comentario-autor-info">
+                <span class="comentario-nome">${comentario.nome_usuario || 'Usuário'}</span>
+                <span class="comentario-email">${comentario.email_usuario}</span>
+              </div>
+            </div>
+            <div class="comentario-data">
+              <i class="material-icons tiny" style="font-size: 14px;">schedule</i>
+              ${dataFormatada}
+              ${comentario.editado ? '<span class="comentario-editado">(editado)</span>' : ''}
+            </div>
+          </div>
+          <div class="comentario-texto" id="texto-${comentario.id}">${comentario.comentario}</div>
+          ${podeEditar ? `
+            <div class="comentario-acoes">
+              <button class="comentario-btn edit" onclick="editarComentario(${comentario.id})" title="Editar">
+                <i class="material-icons">edit</i>
+              </button>
+              <button class="comentario-btn delete" onclick="deletarComentario(${comentario.id}, ${idCliente})" title="Excluir">
+                <i class="material-icons">delete</i>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    });
+  }
+  
+  html += `
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+  
+  // Adicionar contador de caracteres
+  const textarea = document.getElementById('novoComentario');
+  if (textarea) {
+    textarea.addEventListener('input', function() {
+      document.getElementById('charCount').textContent = this.value.length;
+    });
+  }
+}
+
+/**
+ * Adiciona novo comentário
+ */
+async function adicionarComentario(idCliente) {
+  try {
+    const textarea = document.getElementById('novoComentario');
+    const comentario = textarea.value.trim();
+    
+    if (!comentario) {
+      M.toast({html: 'Digite um comentário', classes: 'orange'});
+      return;
+    }
+    
+    if (!appState.user) {
+      M.toast({html: 'Usuário não identificado', classes: 'red'});
+      return;
+    }
+    
+    const { data, error } = await supabaseClient
+      .from('comentarios_clientes')
+      .insert([{
+        id_cliente: idCliente,
+        email_usuario: appState.user.email,
+        nome_usuario: appState.user.nome,
+        comentario: comentario
+      }])
+      .select()
+      .single();
+    
+    if (error) throw error;
+    
+    // Limpar textarea
+    textarea.value = '';
+    document.getElementById('charCount').textContent = '0';
+    
+    // Recarregar comentários
+    const comentarios = await carregarComentarios(idCliente);
+    renderComentarios(comentarios, idCliente);
+    
+    // Log de auditoria
+    await logAuditoria('COMENTARIO_ADICIONADO', idCliente, `Comentário adicionado`);
+    
+    M.toast({html: 'Comentário adicionado!', classes: 'green'});
+  } catch (error) {
+    console.error('❌ Erro ao adicionar comentário:', error);
+    M.toast({html: 'Erro ao adicionar comentário', classes: 'red'});
+  }
+}
+
+/**
+ * Editar comentário
+ */
+async function editarComentario(idComentario) {
+  try {
+    const textoEl = document.getElementById(`texto-${idComentario}`);
+    const textoAtual = textoEl.textContent;
+    
+    // Substituir texto por textarea
+    textoEl.innerHTML = `
+      <textarea 
+        id="edit-textarea-${idComentario}" 
+        style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid #1976d2; border-radius: 4px; font-family: inherit; font-size: 14px;"
+        maxlength="1000"
+      >${textoAtual}</textarea>
+      <div style="margin-top: 10px; text-align: right;">
+        <button class="btn-flat waves-effect" onclick="cancelarEdicao(${idComentario}, '${textoAtual.replace(/`/g, '\\`')}')">
+          Cancelar
+        </button>
+        <button class="btn blue waves-effect waves-light" onclick="salvarEdicaoComentario(${idComentario})">
+          <i class="material-icons left">save</i>Salvar
+        </button>
+      </div>
+    `;
+    
+    document.getElementById(`edit-textarea-${idComentario}`).focus();
+  } catch (error) {
+    console.error('❌ Erro ao editar comentário:', error);
+  }
+}
+
+/**
+ * Cancelar edição
+ */
+function cancelarEdicao(idComentario, textoOriginal) {
+  const textoEl = document.getElementById(`texto-${idComentario}`);
+  textoEl.textContent = textoOriginal;
+}
+
+/**
+ * Salvar edição do comentário
+ */
+async function salvarEdicaoComentario(idComentario) {
+  try {
+    const textarea = document.getElementById(`edit-textarea-${idComentario}`);
+    const novoTexto = textarea.value.trim();
+    
+    if (!novoTexto) {
+      M.toast({html: 'O comentário não pode estar vazio', classes: 'orange'});
+      return;
+    }
+    
+    const { error } = await supabaseClient
+      .from('comentarios_clientes')
+      .update({
+        comentario: novoTexto,
+        editado: true,
+        timestamp_edicao: new Date().toISOString()
+      })
+      .eq('id', idComentario);
+    
+    if (error) throw error;
+    
+    // Recarregar comentários
+    if (window.currentViewingClienteId) {
+      const comentarios = await carregarComentarios(window.currentViewingClienteId);
+      renderComentarios(comentarios, window.currentViewingClienteId);
+    }
+    
+    M.toast({html: 'Comentário atualizado!', classes: 'green'});
+  } catch (error) {
+    console.error('❌ Erro ao salvar comentário:', error);
+    M.toast({html: 'Erro ao salvar comentário', classes: 'red'});
+  }
+}
+
+/**
+ * Deletar comentário
+ */
+async function deletarComentario(idComentario, idCliente) {
+  if (!confirm('Tem certeza que deseja excluir este comentário?')) return;
+  
+  try {
+    const { error } = await supabaseClient
+      .from('comentarios_clientes')
+      .delete()
+      .eq('id', idComentario);
+    
+    if (error) throw error;
+    
+    // Recarregar comentários
+    const comentarios = await carregarComentarios(idCliente);
+    renderComentarios(comentarios, idCliente);
+    
+    // Log de auditoria
+    await logAuditoria('COMENTARIO_DELETADO', idCliente, `Comentário deletado`);
+    
+    M.toast({html: 'Comentário excluído!', classes: 'green'});
+  } catch (error) {
+    console.error('❌ Erro ao deletar comentário:', error);
+    M.toast({html: 'Erro ao deletar comentário', classes: 'red'});
+  }
+}
+
+// ========================================
 // DASHBOARD
 // ========================================
 async function loadDashboardStats() {
@@ -296,6 +1056,204 @@ async function loadDashboardStats() {
     M.toast({html: 'Erro ao carregar estatísticas', classes: 'red'});
   }
 }
+
+
+// ========================================
+// VALIDAÇÃO DE CPF/CNPJ
+// ========================================
+
+/**
+ * Remove caracteres não numéricos
+ */
+function limparDocumento(valor) {
+  return valor.replace(/\D/g, '');
+}
+
+/**
+ * Valida CPF
+ */
+function validarCPF(cpf) {
+  cpf = limparDocumento(cpf);
+  
+  // Verifica se tem 11 dígitos
+  if (cpf.length !== 11) return false;
+  
+  // Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+  
+  // Verifica sequências inválidas comuns
+  const sequenciasInvalidas = [
+    '00000000000', '11111111111', '22222222222', '33333333333',
+    '44444444444', '55555555555', '66666666666', '77777777777',
+    '88888888888', '99999999999', '12345678909'
+  ];
+  
+  if (sequenciasInvalidas.includes(cpf)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let soma = 0;
+  for (let i = 0; i < 9; i++) {
+    soma += parseInt(cpf.charAt(i)) * (10 - i);
+  }
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.charAt(9))) return false;
+  
+  // Validação do segundo dígito verificador
+  soma = 0;
+  for (let i = 0; i < 10; i++) {
+    soma += parseInt(cpf.charAt(i)) * (11 - i);
+  }
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf.charAt(10))) return false;
+  
+  return true;
+}
+
+/**
+ * Valida CNPJ
+ */
+function validarCNPJ(cnpj) {
+  cnpj = limparDocumento(cnpj);
+  
+  // Verifica se tem 14 dígitos
+  if (cnpj.length !== 14) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+  
+  // Verifica sequências inválidas comuns
+  const sequenciasInvalidas = [
+    '00000000000000', '11111111111111', '22222222222222', '33333333333333',
+    '44444444444444', '55555555555555', '66666666666666', '77777777777777',
+    '88888888888888', '99999999999999'
+  ];
+  
+  if (sequenciasInvalidas.includes(cnpj)) return false;
+  
+  // Validação do primeiro dígito verificador
+  let tamanho = cnpj.length - 2;
+  let numeros = cnpj.substring(0, tamanho);
+  let digitos = cnpj.substring(tamanho);
+  let soma = 0;
+  let pos = tamanho - 7;
+  
+  for (let i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  let resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  if (resultado !== parseInt(digitos.charAt(0))) return false;
+  
+  // Validação do segundo dígito verificador
+  tamanho = tamanho + 1;
+  numeros = cnpj.substring(0, tamanho);
+  soma = 0;
+  pos = tamanho - 7;
+  
+  for (let i = tamanho; i >= 1; i--) {
+    soma += numeros.charAt(tamanho - i) * pos--;
+    if (pos < 2) pos = 9;
+  }
+  
+  resultado = soma % 11 < 2 ? 0 : 11 - (soma % 11);
+  if (resultado !== parseInt(digitos.charAt(1))) return false;
+  
+  return true;
+}
+
+/**
+ * Valida CPF ou CNPJ automaticamente
+ */
+function validarCpfCnpj(valor) {
+  const limpo = limparDocumento(valor);
+  
+  if (limpo.length === 11) {
+    return validarCPF(limpo);
+  } else if (limpo.length === 14) {
+    return validarCNPJ(limpo);
+  }
+  
+  return false;
+}
+
+/**
+ * Formata CPF/CNPJ para exibição
+ */
+function formatarCpfCnpj(valor) {
+  const limpo = limparDocumento(valor);
+  
+  if (limpo.length === 11) {
+    // Formato CPF: 000.000.000-00
+    return limpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  } else if (limpo.length === 14) {
+    // Formato CNPJ: 00.000.000/0000-00
+    return limpo.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  }
+  
+  return valor;
+}
+
+/**
+ * Valida o campo CPF/CNPJ e exibe feedback visual
+ */
+function validarCampoCpfCnpj(input) {
+  const valor = input.value.trim();
+  const errorSpan = document.getElementById('cpf_cnpj_error');
+  
+  if (!valor) {
+    input.classList.remove('valid', 'invalid');
+    errorSpan.style.display = 'none';
+    return false;
+  }
+  
+  const limpo = limparDocumento(valor);
+  
+  // Verifica padrões inválidos comuns
+  const padroesInvalidos = [
+    /^x+$/i,  // xxx...
+    /^0+$/,   // 000...
+    /^1+$/,   // 111...
+    /^9+$/    // 999...
+  ];
+  
+  for (const padrao of padroesInvalidos) {
+    if (padrao.test(limpo)) {
+      input.classList.remove('valid');
+      input.classList.add('invalid');
+      errorSpan.textContent = 'CPF/CNPJ inválido. Digite um documento válido.';
+      errorSpan.style.display = 'block';
+      return false;
+    }
+  }
+  
+  // Valida CPF ou CNPJ
+  if (validarCpfCnpj(valor)) {
+    input.classList.remove('invalid');
+    input.classList.add('valid');
+    errorSpan.style.display = 'none';
+    // Formata o campo
+    input.value = formatarCpfCnpj(valor);
+    return true;
+  } else {
+    input.classList.remove('valid');
+    input.classList.add('invalid');
+    
+    if (limpo.length === 11) {
+      errorSpan.textContent = 'CPF inválido. Verifique os dígitos.';
+    } else if (limpo.length === 14) {
+      errorSpan.textContent = 'CNPJ inválido. Verifique os dígitos.';
+    } else {
+      errorSpan.textContent = 'CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.';
+    }
+    
+    errorSpan.style.display = 'block';
+    return false;
+  }
+}
+
 
 // ========================================
 // CLIENTES - CRUD
@@ -436,6 +1394,10 @@ function openNovoClienteModal() {
     M.updateTextFields();
   }, 100);
   if (appState.modals.cliente) appState.modals.cliente.open();
+  setTimeout(() => {
+    const modalContent = document.querySelector('#clienteModal .modal-content');
+    if (modalContent) modalContent.scrollTop = 0;
+  }, 100);
 }
 
 async function editCliente(id_cliente) {
@@ -448,6 +1410,9 @@ async function editCliente(id_cliente) {
       .single();
     
     if (error) throw error;
+    
+    // Armazenar dados originais para comparação
+    window.dadosOriginaisCliente = { ...data };
     
     appState.ui.editingClienteId = id_cliente;
     document.getElementById('clienteModalTitle').textContent = 'Editar Cliente';
@@ -474,16 +1439,18 @@ async function editCliente(id_cliente) {
     document.getElementById('status_regularidade_estadual').value = data.status_regularidade_estadual || '';
     document.getElementById('status_regularidade_conselho').value = data.status_regularidade_conselho || '';
     document.getElementById('observacoes_regularidade').value = data.observacoes_regularidade || '';
-    document.getElementById('observacoes').value = data.observacoes || '';
     
     setTimeout(() => {
       M.FormSelect.init(document.querySelectorAll('select'));
       M.updateTextFields();
-      M.textareaAutoResize(document.getElementById('observacoes'));
       M.textareaAutoResize(document.getElementById('observacoes_regularidade'));
     }, 100);
     
     if (appState.modals.cliente) appState.modals.cliente.open();
+    setTimeout(() => {
+      const modalContent = document.querySelector('#clienteModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar cliente', classes: 'red'});
@@ -492,6 +1459,13 @@ async function editCliente(id_cliente) {
 
 async function salvarCliente() {
   try {
+     // Validar CPF/CNPJ antes de prosseguir
+     const inputCpfCnpj = document.getElementById('cpf_cnpj');
+     if (!validarCampoCpfCnpj(inputCpfCnpj)) {
+       M.toast({html: 'CPF/CNPJ inválido. Corrija antes de salvar.', classes: 'red'});
+       inputCpfCnpj.focus();
+       return;
+     }
     const clienteData = {
       empresa_responsavel: document.getElementById('empresa_responsavel').value,
       squad: document.getElementById('squad').value,
@@ -514,7 +1488,6 @@ async function salvarCliente() {
       status_regularidade_estadual: document.getElementById('status_regularidade_estadual').value || null,
       status_regularidade_conselho: document.getElementById('status_regularidade_conselho').value || null,
       observacoes_regularidade: document.getElementById('observacoes_regularidade').value || null,
-      observacoes: document.getElementById('observacoes').value || null
     };
 
     if (!clienteData.empresa_responsavel || !clienteData.razao_social || !clienteData.cpf_cnpj || !clienteData.municipio) {
@@ -523,6 +1496,9 @@ async function salvarCliente() {
     }
 
     if (appState.ui.editingClienteId) {
+      // Detectar alterações
+      const alteracoes = detectarAlteracoes(window.dadosOriginaisCliente, clienteData);
+      
       const { error } = await supabaseClient
         .from('clientes')
         .update(clienteData)
@@ -530,21 +1506,32 @@ async function salvarCliente() {
       
       if (error) throw error;
       
+      // Registrar histórico
+      if (Object.keys(alteracoes).length > 0) {
+        await registrarHistorico(appState.ui.editingClienteId, 'EDICAO', alteracoes);
+      }
+      
       await logAuditoria('CLIENTE_ATUALIZADO', appState.ui.editingClienteId, `Cliente ${clienteData.razao_social} atualizado`);
       M.toast({html: 'Cliente atualizado com sucesso!', classes: 'green'});
     } else {
-      const { error } = await supabaseClient
+      const { data: novoCliente, error } = await supabaseClient
         .from('clientes')
-        .insert([clienteData]);
+        .insert([clienteData])
+        .select()
+        .single();
       
       if (error) throw error;
       
-      await logAuditoria('CLIENTE_CRIADO', null, `Novo cliente: ${clienteData.razao_social}`);
+      // Registrar histórico
+      await registrarHistorico(novoCliente.id_cliente, 'CRIACAO', null, `Cliente criado: ${clienteData.razao_social}`);
+      
+      await logAuditoria('CLIENTE_CRIADO', novoCliente.id_cliente, `Novo cliente: ${clienteData.razao_social}`);
       M.toast({html: 'Cliente criado com sucesso!', classes: 'green'});
     }
 
     if (appState.modals.cliente) appState.modals.cliente.close();
     loadClientes();
+    verificarNotificacoes(); // Atualizar notificações
   } catch (error) {
     console.error('❌ Erro ao salvar:', error);
     M.toast({html: `Erro: ${error.message}`, classes: 'red'});
@@ -555,6 +1542,16 @@ async function deleteCliente(id_cliente) {
   if (!confirm('Tem certeza que deseja deletar este cliente?')) return;
   
   try {
+    // Buscar razão social antes de deletar
+    const { data: cliente } = await supabaseClient
+      .from('clientes')
+      .select('razao_social')
+      .eq('id_cliente', id_cliente)
+      .single();
+    
+    // Registrar histórico antes de deletar
+    await registrarHistorico(id_cliente, 'EXCLUSAO', null, cliente ? `Cliente deletado: ${cliente.razao_social}` : null);
+    
     const { error } = await supabaseClient
       .from('clientes')
       .delete()
@@ -565,6 +1562,7 @@ async function deleteCliente(id_cliente) {
     M.toast({html: 'Cliente deletado!', classes: 'green'});
     await logAuditoria('CLIENTE_DELETADO', id_cliente, `Cliente ID ${id_cliente} deletado`);
     loadClientes();
+    verificarNotificacoes(); // Atualizar notificações
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao deletar', classes: 'red'});
@@ -583,6 +1581,9 @@ async function viewCliente(id_cliente) {
     
     // Armazenar ID globalmente para usar nos botões do modal
     window.currentViewingClienteId = id_cliente;
+    
+    // Carregar comentários
+    const comentarios = await carregarComentarios(id_cliente);
     
     const formatDate = (dateStr) => {
       if (!dateStr) return '-';
@@ -613,6 +1614,7 @@ async function viewCliente(id_cliente) {
       return classes[status] || '';
     };
     
+       
     const detalhesHtml = `
       <div style="padding: 0;">
         <!-- Cabeçalho -->
@@ -738,20 +1740,18 @@ async function viewCliente(id_cliente) {
           </div>
         </div>
         
-        <!-- Observações Gerais (largura total) -->
-        ${data.observacoes ? `
-        <div class="info-section">
-          <h6><i class="material-icons tiny" style="vertical-align: middle;">description</i> Observações Gerais</h6>
-          <div class="obs-box">
-            <p style="margin: 0; white-space: pre-wrap; line-height: 1.6;">${data.observacoes}</p>
-          </div>
-        </div>
-        ` : ''}
+        <!-- Seção de Comentários -->
+        <div id="comentariosContainer"></div>
       </div>
     `;
     
     document.getElementById('clienteDetalhes').innerHTML = detalhesHtml;
+    renderComentarios(comentarios, id_cliente);
     if (appState.modals.viewCliente) appState.modals.viewCliente.open();
+    setTimeout(() => {
+      const modalContent = document.querySelector('#viewClienteModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao visualizar', classes: 'red'});
@@ -776,6 +1776,7 @@ function deletarClienteDoModal() {
 function resetClienteForm() {
   document.getElementById('clienteForm').reset();
   appState.ui.editingClienteId = null;
+  window.dadosOriginaisCliente = null;
   M.updateTextFields();
 }
 
@@ -848,18 +1849,18 @@ function ordenarPor(campo) {
 function exportarCSV() {
   try {
     const tbody = document.getElementById('clientesTableBody');
-    const clientesFiltrados = [];  
+    const clientesFiltrados = [];
     
     const rows = tbody.getElementsByTagName('tr');
     if (rows.length > 0 && rows[0].cells.length > 1) {
       for (let row of rows) {
         const id = parseInt(row.cells[0].textContent);
         const cliente = appState.clientes.todos.find(c => c.id_cliente === id);
-        if (cliente) appState.clientes.filtrados.push(cliente);
+        if (cliente) clientesFiltrados.push(cliente);
       }
     }
     
-    const dadosExportar = appState.clientes.filtrados.length > 0 ? appState.clientes.filtrados : appState.clientes.todos;
+    const dadosExportar = clientesFiltrados.length > 0 ? clientesFiltrados : appState.clientes.todos;
     
     if (dadosExportar.length === 0) {
       M.toast({html: 'Nenhum cliente para exportar', classes: 'orange'});
@@ -923,7 +1924,7 @@ function exportarCSV() {
   }
 }
 
-function exportarCSV() {
+function exportarExcel() {
   try {
     const tbody = document.getElementById('clientesTableBody');
     const clientesFiltrados = [];
@@ -938,7 +1939,7 @@ function exportarCSV() {
     }
     
     const dadosExportar = clientesFiltrados.length > 0 ? clientesFiltrados : appState.clientes.todos;
-
+    
     if (dadosExportar.length === 0) {
       M.toast({html: 'Nenhum cliente para exportar', classes: 'orange'});
       return;
@@ -1030,8 +2031,14 @@ async function loadUsuarios() {
     
     if (error) throw error;
     
+    todosUsuarios = data;
     const tbody = document.getElementById('usuariosTableBody');
     tbody.innerHTML = '';
+    
+    if (data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="center-align">Nenhum usuário cadastrado</td></tr>';
+      return;
+    }
     
     data.forEach(usuario => {
       const row = tbody.insertRow();
@@ -1051,6 +2058,49 @@ async function loadUsuarios() {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar usuários', classes: 'red'});
   }
+}
+
+// Filtro de usuários com debounce
+let todosUsuarios = [];
+let usuariosTimeout = null;
+
+function filterUsuarios() {
+  clearTimeout(usuariosTimeout);
+  usuariosTimeout = setTimeout(() => {
+    const searchTerm = document.getElementById('searchUsuario').value.toLowerCase();
+    const tbody = document.getElementById('usuariosTableBody');
+    
+    let usuariosFiltrados = todosUsuarios;
+    
+    if (searchTerm) {
+      usuariosFiltrados = todosUsuarios.filter(usuario => 
+        (usuario.email && usuario.email.toLowerCase().includes(searchTerm)) ||
+        (usuario.nome && usuario.nome.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    tbody.innerHTML = '';
+    
+    if (usuariosFiltrados.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="center-align">Nenhum usuário encontrado</td></tr>';
+      return;
+    }
+    
+    usuariosFiltrados.forEach(usuario => {
+      const row = tbody.insertRow();
+      row.innerHTML = `
+        <td>${usuario.email}</td>
+        <td>${usuario.nome}</td>
+        <td>${usuario.empresa}</td>
+        <td>${usuario.papel}</td>
+        <td>${usuario.ativo ? 'Sim' : 'Não'}</td>
+        <td>
+          <a href="#!" class="btn-small green" onclick="editUsuario('${usuario.email}')"><i class="material-icons">edit</i></a>
+          <a href="#!" class="btn-small red" onclick="deleteUsuario('${usuario.email}')"><i class="material-icons">delete</i></a>
+        </td>
+      `;
+    });
+  }, 300);
 }
 
 function editUsuario(email) {
