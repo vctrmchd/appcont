@@ -593,6 +593,44 @@
       font-weight: 600;
       margin-left: 10px;
     }
+
+    /* Badges de Empresa */
+.badge-empresa {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: white;
+}
+
+.badge-sorria {
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.3);
+}
+
+.badge-medic {
+  background: linear-gradient(135deg, #028a0f 0%, #026b0c 100%);
+  box-shadow: 0 2px 4px rgba(2, 138, 15, 0.3);
+}
+
+.badge-felicio {
+  background: linear-gradient(135deg, #757575 0%, #616161 100%);
+  box-shadow: 0 2px 4px rgba(117, 117, 117, 0.3);
+}
+
+.badge-default {
+  background: linear-gradient(135deg, #9e9e9e 0%, #757575 100%);
+  box-shadow: 0 2px 4px rgba(158, 158, 158, 0.3);
+}
+
+.badge-empresa:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
   </style>
 </head>
 <body>
@@ -722,6 +760,7 @@
                         <option value="">Todas</option>
                         <option value="Sorria">Sorria</option>
                         <option value="Medic">Medic</option>
+                        <option value="Felício">Felício</option>
                       </select>
                       <label>Empresa</label>
                     </div>
@@ -883,18 +922,91 @@
 
       <!-- Auditoria Section -->
       <div id="auditoriaSection" class="section hidden">
-        <h4 class="section-title">Auditoria</h4>
+        <div class="row" style="margin-bottom: 20px; align-items: center;">
+          <div class="col s12">
+            <h4 class="section-title" style="margin: 0;">Auditoria</h4>
+          </div>
+        </div>
         <div class="row">
           <div class="col s12">
             <div class="card">
               <div class="card-content">
+                <!-- Filtros -->
+                <div class="row" style="margin-bottom: 10px;">
+                  <div class="col s12">
+                    <a class="btn-flat waves-effect waves-light" onclick="toggleFiltrosAuditoria()" style="margin-bottom: 15px;">
+                      <i class="material-icons left">filter_list</i>Filtros
+                    </a>
+                  </div>
+                </div>
+                
+                <!-- Painel de Filtros -->
+                <div id="filtrosAuditoria" class="row" style="display: none; background: #f5f5f5; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                  <div class="col s12 m6 l3">
+                    <div class="input-field">
+                      <input id="filtroAuditoriaDataInicio" type="date">
+                      <label for="filtroAuditoriaDataInicio" class="active">Data Início</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m6 l3">
+                    <div class="input-field">
+                      <input id="filtroAuditoriaDataFim" type="date">
+                      <label for="filtroAuditoriaDataFim" class="active">Data Fim</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m6 l3">
+                    <div class="input-field">
+                      <input id="filtroAuditoriaUsuario" type="text" onkeyup="aplicarFiltrosAuditoria()">
+                      <label for="filtroAuditoriaUsuario">Usuário (Email)</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m6 l3">
+                    <div class="input-field">
+                      <select id="filtroAuditoriaAcao" onchange="aplicarFiltrosAuditoria()">
+                        <option value="">Todas as Ações</option>
+                        <option value="CLIENTE_CRIADO">Cliente Criado</option>
+                        <option value="CLIENTE_ATUALIZADO">Cliente Atualizado</option>
+                        <option value="CLIENTE_DELETADO">Cliente Deletado</option>
+                        <option value="USUARIO_CRIADO">Usuário Criado</option>
+                        <option value="USUARIO_ATUALIZADO">Usuário Atualizado</option>
+                        <option value="USUARIO_DELETADO">Usuário Deletado</option>
+                        <option value="COMENTARIO_ADICIONADO">Comentário Adicionado</option>
+                        <option value="COMENTARIO_DELETADO">Comentário Deletado</option>
+                        <option value="EXPORTAR_CSV">Exportar CSV</option>
+                        <option value="EXPORTAR_EXCEL">Exportar Excel</option>
+                      </select>
+                      <label>Ação</label>
+                    </div>
+                  </div>
+                  <div class="col s12 m6 l3">
+                    <div class="input-field">
+                      <input id="filtroAuditoriaCliente" type="number" onkeyup="aplicarFiltrosAuditoria()">
+                      <label for="filtroAuditoriaCliente">ID Cliente</label>
+                    </div>
+                  </div>
+                  <div class="col s12 right-align">
+                    <a class="btn-flat waves-effect" onclick="limparFiltrosAuditoria()">Limpar Filtros</a>
+                    <a class="btn blue waves-effect waves-light" onclick="aplicarFiltrosAuditoria()">
+                      <i class="material-icons left">search</i>Aplicar Filtros
+                    </a>
+                  </div>
+                </div>
+
                 <table class="striped highlight responsive-table" id="auditoriaTable">
                   <thead>
                     <tr>
-                      <th>Data/Hora</th>
-                      <th>Usuário</th>
-                      <th>Ação</th>
-                      <th>ID Cliente</th>
+                      <th style="cursor: pointer;" onclick="ordenarAuditoria('timestamp')">
+                        Data/Hora <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarAuditoria('email_usuario')">
+                        Usuário <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarAuditoria('acao')">
+                        Ação <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
+                      <th style="cursor: pointer;" onclick="ordenarAuditoria('id_cliente_afetado')">
+                        ID Cliente <i class="material-icons tiny" style="vertical-align: middle;">unfold_more</i>
+                      </th>
                       <th>Detalhes</th>
                     </tr>
                   </thead>
@@ -902,6 +1014,15 @@
                     <tr><td colspan="5" class="center-align">Carregando...</td></tr>
                   </tbody>
                 </table>
+                
+                <!-- Info de registros -->
+                <div class="row" style="margin-top: 20px;">
+                  <div class="col s12 center-align">
+                    <p style="color: #757575;">
+                      <span id="infoAuditoria">Carregando registros...</span>
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -956,6 +1077,7 @@
                 <option value="" disabled selected>Escolha uma empresa</option>
                 <option value="Sorria">Sorria</option>
                 <option value="Medic">Medic</option>
+                <option value="Felício">Felício</option>
               </select>
               <label>Empresa Responsável *</label>
             </div>
@@ -1221,5 +1343,112 @@
 
   <!-- Lógica da Aplicação -->
   <script src="app.js" defer></script>
+
+  <!-- Modal: Novo/Editar Usuário -->
+<div id="usuarioModal" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <div class="form-header">
+      <h4 id="usuarioModalTitle">Novo Usuário</h4>
+      <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">Preencha os dados do usuário</p>
+    </div>
+    
+    <form id="usuarioForm">
+      <!-- Informações Básicas -->
+      <div class="form-section">
+        <h6>
+          <i class="material-icons">person</i>
+          Informações Básicas
+        </h6>
+        
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="usuario_email" type="email" required>
+            <label for="usuario_email">Email *</label>
+            <span class="helper-text">O email será usado para login</span>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="usuario_nome" type="text" required>
+            <label for="usuario_nome">Nome Completo *</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <select id="usuario_empresa" required>
+              <option value="" disabled selected>Escolha uma empresa</option>
+              <option value="Sorria">Sorria</option>
+              <option value="Medic">Medic</option>
+              <option value="Felício">Felício</option>
+              <option value="Todas">Todas</option>
+            </select>
+            <label>Empresa *</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <select id="usuario_papel" required>
+              <option value="" disabled selected>Escolha um papel</option>
+              <option value="Administrador">Administrador</option>
+              <option value="Gerente">Gerente</option>
+              <option value="Operador">Operador</option>
+              <option value="Visualizador">Visualizador</option>
+            </select>
+            <label>Papel/Permissão *</label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <select id="usuario_status" required>
+              <option value="" disabled>Escolha o status</option>
+              <option value="true" selected>Ativo</option>
+              <option value="false">Inativo</option>
+            </select>
+            <label>Status *</label>
+            <span class="helper-text">Usuários inativos não podem acessar o sistema</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Senha -->
+      <div class="form-section" id="senhaSection">
+        <h6>
+          <i class="material-icons">lock</i>
+          Senha
+        </h6>
+        
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <input id="usuario_senha" type="password" minlength="6" autocomplete="new-password">
+            <label for="usuario_senha">Senha <span id="senhaObrigatoriaLabel">*</span></label>
+            <span class="helper-text">Mínimo de 6 caracteres</span>
+          </div>
+          <div class="input-field col s12 m6">
+            <input id="usuario_confirmar_senha" type="password" minlength="6" autocomplete="new-password">
+            <label for="usuario_confirmar_senha">Confirmar Senha <span id="confirmaSenhaObrigatoriaLabel">*</span></label>
+          </div>
+        </div>
+
+        <div class="row" id="alterarSenhaInfo" style="display: none;">
+          <div class="col s12">
+            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
+              <i class="material-icons tiny" style="vertical-align: middle;">info</i>
+              <strong>Atenção:</strong> Preencha apenas se deseja alterar a senha. Deixe em branco para manter a senha atual.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <input type="hidden" id="usuario_email_original">
+      <input type="hidden" id="usuario_modo_edicao" value="false">
+    </form>
+  </div>
+  <div class="modal-footer" style="padding: 20px 30px; background: #f5f5f5;">
+    <a href="#!" class="modal-close waves-effect waves-red btn-flat" style="margin-right: 10px;">
+      <i class="material-icons left">close</i>Cancelar
+    </a>
+    <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarUsuario()">
+      <i class="material-icons left">save</i>Salvar Usuário
+    </a>
+  </div>
+</div>
 </body>
 </html>

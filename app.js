@@ -36,6 +36,9 @@ const appState = {
   }
 };
 
+// Modal de usuário
+let usuarioModal = null;
+
 // Variável auxiliar para debounce
 let buscaTimeout = null;
 
@@ -117,6 +120,19 @@ function processarClientes() {
   }
 }
 
+/**
+ * Retorna a classe CSS para o badge da empresa
+ */
+function getBadgeEmpresaClass(empresa) {
+  const classes = {
+    'Sorria': 'badge-sorria',
+    'Medic': 'badge-medic',
+    'Felício': 'badge-felicio'
+  };
+  return classes[empresa] || 'badge-default';
+}
+
+
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
@@ -127,7 +143,15 @@ document.addEventListener('DOMContentLoaded', function() {
   const clienteModalEl = document.getElementById('clienteModal');
   const viewClienteModalEl = document.getElementById('viewClienteModal');
   const historicoModalEl = document.getElementById('historicoModal');
-  
+  const usuarioModalEl = document.getElementById('usuarioModal');
+ 
+  if (usuarioModalEl) {
+    usuarioModal = M.Modal.init(usuarioModalEl, {
+      dismissible: true,
+      onCloseEnd: resetUsuarioForm
+    });
+  }
+
   if (clienteModalEl) {
     appState.modals.cliente = M.Modal.init(clienteModalEl, {
       dismissible: true,
@@ -1309,7 +1333,7 @@ function renderClientes() {
       <td>${cliente.cpf_cnpj || '-'}</td>
       <td>${cliente.uf || '-'}</td>
       <td>${cliente.situacao || '-'}</td>
-      <td>${cliente.empresa_responsavel || '-'}</td>
+      <td>${cliente.empresa_responsavel ? `<span class="badge-empresa ${getBadgeEmpresaClass(cliente.empresa_responsavel)}">${cliente.empresa_responsavel}</span>` : '-'}</td>
       <td>${cliente.regime_tributacao || '-'}</td>
       <td>
         <a href="#!" class="btn-small blue tooltipped" data-position="top" data-tooltip="Visualizar" onclick="viewCliente(${cliente.id_cliente})">
@@ -1827,6 +1851,261 @@ function limparFiltros() {
   renderClientes();
 }
 
+
+// ========================================
+// USUÁRIOS - FUNÇÕES CRUD
+// ========================================
+
+/**
+ * Abre modal para criar novo usuário
+ */
+function openNovoUsuarioModal() {
+  console.log('➕ Novo usuário');
+  document.getElementById('usuario_modo_edicao').value = 'false';
+  resetUsuarioForm();
+  document.getElementById('usuarioModalTitle').textContent = 'Novo Usuário';
+  document.getElementById('usuario_email').disabled = false;
+  document.getElementById('alterarSenhaInfo').style.display = 'none';
+  document.getElementById('senhaObrigatoriaLabel').style.display = 'inline';
+  document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'inline';
+  document.getElementById('usuario_senha').required = true;
+  document.getElementById('usuario_confirmar_senha').required = true;
+  
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
+    M.updateTextFields();
+  }, 100);
+  
+  if (usuarioModal) usuarioModal.open();
+  
+  // Resetar scroll do modal
+  setTimeout(() => {
+    const modalContent = document.querySelector('#usuarioModal .modal-content');
+    if (modalContent) modalContent.scrollTop = 0;
+  }, 100);
+}
+
+/**
+ * Abre modal para editar usuário existente
+ */
+async function editUsuario(email) {
+  try {
+    console.log(`✏️ Editar usuário ${email}`);
+    
+    const { data, error } = await supabaseClient
+      .from('usuarios')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error) throw error;
+    
+    document.getElementById('usuario_modo_edicao').value = 'true';
+    document.getElementById('usuarioModalTitle').textContent = 'Editar Usuário';
+    
+    document.getElementById('usuario_email').value = data.email;
+    document.getElementById('usuario_email').disabled = true; // Email não pode ser alterado
+    document.getElementById('usuario_email_original').value = data.email;
+    document.getElementById('usuario_nome').value = data.nome || '';
+    document.getElementById('usuario_empresa').value = data.empresa || '';
+    document.getElementById('usuario_papel').value = data.papel || '';
+    document.getElementById('usuario_status').value = data.ativo ? 'true' : 'false';
+    
+    // Senha não é obrigatória na edição
+    document.getElementById('alterarSenhaInfo').style.display = 'block';
+    document.getElementById('senhaObrigatoriaLabel').style.display = 'none';
+    document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'none';
+    document.getElementById('usuario_senha').required = false;
+    document.getElementById('usuario_confirmar_senha').required = false;
+    document.getElementById('usuario_senha').value = '';
+    document.getElementById('usuario_confirmar_senha').value = '';
+    
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
+      M.updateTextFields();
+    }, 100);
+    
+    if (usuarioModal) usuarioModal.open();
+    
+    // Resetar scroll do modal
+    setTimeout(() => {
+      const modalContent = document.querySelector('#usuarioModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
+  }
+}
+
+/**
+ * Salva usuário (criar ou atualizar)
+ */
+async function salvarUsuario() {
+  try {
+    const modoEdicao = document.getElementById('usuario_modo_edicao').value === 'true';
+    const email = document.getElementById('usuario_email').value.trim();
+    const nome = document.getElementById('usuario_nome').value.trim();
+    const empresa = document.getElementById('usuario_empresa').value;
+    const papel = document.getElementById('usuario_papel').value;
+    const statusNovo = document.getElementById('usuario_status').value === 'true';
+    const senha = document.getElementById('usuario_senha').value;
+    const confirmarSenha = document.getElementById('usuario_confirmar_senha').value;
+    
+    // Validações
+    if (!email || !nome || !empresa || !papel) {
+      M.toast({html: 'Preencha todos os campos obrigatórios', classes: 'orange'});
+      return;
+    }
+    
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      M.toast({html: 'Email inválido', classes: 'red'});
+      return;
+    }
+    
+    // Validar senha (obrigatória apenas na criação)
+    if (!modoEdicao && (!senha || senha.length < 6)) {
+      M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
+      return;
+    }
+    
+    // Se senha foi preenchida, validar
+    if (senha) {
+      if (senha.length < 6) {
+        M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
+        return;
+      }
+      
+      if (senha !== confirmarSenha) {
+        M.toast({html: 'As senhas não coincidem', classes: 'red'});
+        return;
+      }
+    }
+    
+    // Se estiver editando, verificar se o status mudou
+    if (modoEdicao) {
+      const emailOriginal = document.getElementById('usuario_email_original').value;
+      
+      // Buscar status atual do usuário
+      const { data: usuarioAtual } = await supabaseClient
+        .from('usuarios')
+        .select('ativo, nome')
+        .eq('email', emailOriginal)
+        .single();
+      
+      if (usuarioAtual && usuarioAtual.ativo !== statusNovo) {
+        const statusTexto = statusNovo ? 'ATIVAR' : 'INATIVAR';
+        const statusCor = statusNovo ? 'green' : 'red';
+        const mensagem = statusNovo 
+          ? `Tem certeza que deseja ATIVAR o usuário "${usuarioAtual.nome}"?\n\nO usuário poderá acessar o sistema novamente.`
+          : `Tem certeza que deseja INATIVAR o usuário "${usuarioAtual.nome}"?\n\nO usuário não poderá mais acessar o sistema.`;
+        
+        if (!confirm(mensagem)) {
+          return;
+        }
+      }
+    }
+    
+    const usuarioData = {
+      email: email,
+      nome: nome,
+      empresa: empresa,
+      papel: papel,
+      ativo: statusNovo
+    };
+    
+    // Adicionar senha apenas se foi preenchida
+    if (senha) {
+      usuarioData.senha = senha;
+    }
+    
+    if (modoEdicao) {
+      const emailOriginal = document.getElementById('usuario_email_original').value;
+      
+      const { error } = await supabaseClient
+        .from('usuarios')
+        .update(usuarioData)
+        .eq('email', emailOriginal);
+      
+      if (error) throw error;
+      
+      const statusMensagem = statusNovo ? 'ativado' : 'inativado';
+      await logAuditoria('USUARIO_ATUALIZADO', null, `Usuário ${email} atualizado - Status: ${statusMensagem}`);
+      M.toast({html: 'Usuário atualizado com sucesso!', classes: 'green'});
+    } else {
+      // Verificar se email já existe
+      const { data: existente } = await supabaseClient
+        .from('usuarios')
+        .select('email')
+        .eq('email', email)
+        .single();
+      
+      if (existente) {
+        M.toast({html: 'Email já cadastrado', classes: 'red'});
+        return;
+      }
+      
+      const { error } = await supabaseClient
+        .from('usuarios')
+        .insert([usuarioData]);
+      
+      if (error) throw error;
+      
+      await logAuditoria('USUARIO_CRIADO', null, `Novo usuário: ${email}`);
+      M.toast({html: 'Usuário criado com sucesso!', classes: 'green'});
+    }
+    
+    if (usuarioModal) usuarioModal.close();
+    loadUsuarios();
+  } catch (error) {
+    console.error('❌ Erro ao salvar:', error);
+    M.toast({html: `Erro: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Deleta usuário
+ */
+async function deleteUsuario(email) {
+  // Impedir exclusão do próprio usuário
+  if (appState.user && appState.user.email === email) {
+    M.toast({html: 'Você não pode excluir seu próprio usuário', classes: 'red'});
+    return;
+  }
+  
+  if (!confirm(`Tem certeza que deseja excluir o usuário ${email}?`)) return;
+  
+  try {
+    const { error } = await supabaseClient
+      .from('usuarios')
+      .delete()
+      .eq('email', email);
+    
+    if (error) throw error;
+    
+    M.toast({html: 'Usuário excluído!', classes: 'green'});
+    await logAuditoria('USUARIO_DELETADO', null, `Usuário ${email} deletado`);
+    loadUsuarios();
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    M.toast({html: 'Erro ao excluir usuário', classes: 'red'});
+  }
+}
+
+/**
+ * Reseta o formulário de usuário
+ */
+function resetUsuarioForm() {
+  document.getElementById('usuarioForm').reset();
+  document.getElementById('usuario_modo_edicao').value = 'false';
+  document.getElementById('usuario_email_original').value = '';
+  document.getElementById('usuario_email').disabled = false;
+  M.updateTextFields();
+}
+
+
 // ========================================
 // ORDENAÇÃO
 // ========================================
@@ -2047,7 +2326,11 @@ async function loadUsuarios() {
         <td>${usuario.nome}</td>
         <td>${usuario.empresa}</td>
         <td>${usuario.papel}</td>
-        <td>${usuario.ativo ? 'Sim' : 'Não'}</td>
+        <td>
+          <span class="status-badge ${usuario.ativo ? 'status-ativo' : 'status-inativo'}">
+            ${usuario.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        </td>
         <td>
           <a href="#!" class="btn-small green" onclick="editUsuario('${usuario.email}')"><i class="material-icons">edit</i></a>
           <a href="#!" class="btn-small red" onclick="deleteUsuario('${usuario.email}')"><i class="material-icons">delete</i></a>
@@ -2063,6 +2346,14 @@ async function loadUsuarios() {
 // Filtro de usuários com debounce
 let todosUsuarios = [];
 let usuariosTimeout = null;
+
+// Auditoria
+let todosLogsAuditoria = [];
+let logsAuditoriaFiltrados = [];
+let auditoriaOrdenacao = {
+  campo: 'timestamp',
+  direcao: 'desc'
+};
 
 function filterUsuarios() {
   clearTimeout(usuariosTimeout);
@@ -2093,7 +2384,11 @@ function filterUsuarios() {
         <td>${usuario.nome}</td>
         <td>${usuario.empresa}</td>
         <td>${usuario.papel}</td>
-        <td>${usuario.ativo ? 'Sim' : 'Não'}</td>
+        <td>
+          <span class="status-badge ${usuario.ativo ? 'status-ativo' : 'status-inativo'}">
+            ${usuario.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        </td>
         <td>
           <a href="#!" class="btn-small green" onclick="editUsuario('${usuario.email}')"><i class="material-icons">edit</i></a>
           <a href="#!" class="btn-small red" onclick="deleteUsuario('${usuario.email}')"><i class="material-icons">delete</i></a>
@@ -2103,28 +2398,7 @@ function filterUsuarios() {
   }, 300);
 }
 
-function editUsuario(email) {
-  M.toast({html: 'Edição de usuário em desenvolvimento', classes: 'blue'});
-}
 
-async function deleteUsuario(email) {
-  if (!confirm('Deletar este usuário?')) return;
-  
-  try {
-    const { error } = await supabaseClient.from('usuarios').delete().eq('email', email);
-    if (error) throw error;
-    M.toast({html: 'Usuário deletado!', classes: 'green'});
-    await logAuditoria('USUARIO_DELETADO', null, `Usuário ${email} deletado`);
-    loadUsuarios();
-  } catch (error) {
-    console.error('❌ Erro:', error);
-    M.toast({html: 'Erro ao deletar', classes: 'red'});
-  }
-}
-
-function openNovoUsuarioModal() {
-  M.toast({html: 'Criação de usuário em desenvolvimento', classes: 'blue'});
-}
 
 // ========================================
 // AUDITORIA
@@ -2135,28 +2409,13 @@ async function loadAuditoria() {
       .from('auditoria')
       .select('*')
       .order('timestamp', { ascending: false })
-      .limit(100);
+      .limit(500); // Limitar para performance
     
     if (error) throw error;
     
-    const tbody = document.getElementById('auditoriaTableBody');
-    tbody.innerHTML = '';
-    
-    if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="center-align">Nenhum log</td></tr>';
-      return;
-    }
-    
-    data.forEach(log => {
-      const row = tbody.insertRow();
-      row.innerHTML = `
-        <td>${new Date(log.timestamp).toLocaleString('pt-BR')}</td>
-        <td>${log.email_usuario}</td>
-        <td>${log.acao}</td>
-        <td>${log.id_cliente_afetado || '-'}</td>
-        <td>${log.detalhes}</td>
-      `;
-    });
+    todosLogsAuditoria = data;
+    logsAuditoriaFiltrados = data;
+    renderAuditoria();
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar auditoria', classes: 'red'});
@@ -2176,6 +2435,152 @@ async function logAuditoria(acao, id_cliente_afetado, detalhes) {
   } catch (error) {
     console.error('❌ Erro auditoria:', error);
   }
+}
+
+/**
+ * Toggle do painel de filtros de auditoria
+ */
+function toggleFiltrosAuditoria() {
+  const filtrosPanel = document.getElementById('filtrosAuditoria');
+  if (filtrosPanel.style.display === 'none') {
+    filtrosPanel.style.display = 'block';
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#filtrosAuditoria select'));
+    }, 100);
+  } else {
+    filtrosPanel.style.display = 'none';
+  }
+}
+
+/**
+ * Aplica filtros na auditoria
+ */
+function aplicarFiltrosAuditoria() {
+  const dataInicio = document.getElementById('filtroAuditoriaDataInicio').value;
+  const dataFim = document.getElementById('filtroAuditoriaDataFim').value;
+  const usuario = document.getElementById('filtroAuditoriaUsuario').value.toLowerCase().trim();
+  const acao = document.getElementById('filtroAuditoriaAcao').value;
+  const idCliente = document.getElementById('filtroAuditoriaCliente').value.trim();
+  
+  logsAuditoriaFiltrados = todosLogsAuditoria.filter(log => {
+    // Filtro de data início
+    if (dataInicio) {
+      const logData = new Date(log.timestamp);
+      const filtroData = new Date(dataInicio);
+      if (logData < filtroData) return false;
+    }
+    
+    // Filtro de data fim
+    if (dataFim) {
+      const logData = new Date(log.timestamp);
+      const filtroData = new Date(dataFim);
+      filtroData.setHours(23, 59, 59, 999); // Incluir todo o dia
+      if (logData > filtroData) return false;
+    }
+    
+    // Filtro de usuário
+    if (usuario && !log.email_usuario.toLowerCase().includes(usuario)) {
+      return false;
+    }
+    
+    // Filtro de ação
+    if (acao && log.acao !== acao) {
+      return false;
+    }
+    
+    // Filtro de ID cliente
+    if (idCliente && log.id_cliente_afetado != idCliente) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  renderAuditoria();
+}
+
+/**
+ * Limpa filtros de auditoria
+ */
+function limparFiltrosAuditoria() {
+  document.getElementById('filtroAuditoriaDataInicio').value = '';
+  document.getElementById('filtroAuditoriaDataFim').value = '';
+  document.getElementById('filtroAuditoriaUsuario').value = '';
+  document.getElementById('filtroAuditoriaAcao').value = '';
+  document.getElementById('filtroAuditoriaCliente').value = '';
+  
+  M.FormSelect.init(document.querySelectorAll('#filtrosAuditoria select'));
+  M.updateTextFields();
+  
+  logsAuditoriaFiltrados = todosLogsAuditoria;
+  renderAuditoria();
+}
+
+/**
+ * Ordena logs de auditoria
+ */
+function ordenarAuditoria(campo) {
+  if (auditoriaOrdenacao.campo === campo) {
+    auditoriaOrdenacao.direcao = auditoriaOrdenacao.direcao === 'asc' ? 'desc' : 'asc';
+  } else {
+    auditoriaOrdenacao.campo = campo;
+    auditoriaOrdenacao.direcao = 'asc';
+  }
+  
+  renderAuditoria();
+}
+
+/**
+ * Renderiza tabela de auditoria
+ */
+function renderAuditoria() {
+  const tbody = document.getElementById('auditoriaTableBody');
+  const infoAuditoria = document.getElementById('infoAuditoria');
+  
+  // Aplicar ordenação
+  const logsOrdenados = [...logsAuditoriaFiltrados].sort((a, b) => {
+    let valorA = a[auditoriaOrdenacao.campo];
+    let valorB = b[auditoriaOrdenacao.campo];
+    
+    if (valorA === null || valorA === undefined) valorA = '';
+    if (valorB === null || valorB === undefined) valorB = '';
+    
+    // Para timestamps, comparar como datas
+    if (auditoriaOrdenacao.campo === 'timestamp') {
+      valorA = new Date(valorA);
+      valorB = new Date(valorB);
+    } else {
+      valorA = String(valorA).toLowerCase();
+      valorB = String(valorB).toLowerCase();
+    }
+    
+    if (auditoriaOrdenacao.direcao === 'asc') {
+      return valorA > valorB ? 1 : valorA < valorB ? -1 : 0;
+    } else {
+      return valorA < valorB ? 1 : valorA > valorB ? -1 : 0;
+    }
+  });
+  
+  tbody.innerHTML = '';
+  
+  if (logsOrdenados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="center-align">Nenhum registro de auditoria encontrado</td></tr>';
+    infoAuditoria.textContent = 'Nenhum registro encontrado';
+    return;
+  }
+  
+  logsOrdenados.forEach(log => {
+    const row = tbody.insertRow();
+    row.innerHTML = `
+      <td>${new Date(log.timestamp).toLocaleString('pt-BR')}</td>
+      <td>${log.email_usuario}</td>
+      <td><span class="badge blue white-text">${log.acao}</span></td>
+      <td>${log.id_cliente_afetado || '-'}</td>
+      <td>${log.detalhes}</td>
+    `;
+  });
+  
+  infoAuditoria.textContent = `Exibindo ${logsOrdenados.length} de ${todosLogsAuditoria.length} registros`;
 }
 
 console.log('✅ app.js carregado!');
