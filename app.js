@@ -42,6 +42,9 @@ let buscaTimeout = null;
 // Intervalo para verificação de notificações
 let notificationInterval = null;
 
+// Modal de parcelamento
+let parcelamentoModal = null;
+
 // ========================================
 // UTILITÁRIOS
 // ========================================
@@ -117,6 +120,18 @@ function processarClientes() {
   }
 }
 
+/**
+ * Retorna a classe CSS para o badge da empresa
+ */
+function getBadgeEmpresaClass(empresa) {
+  const classes = {
+    'Sorria': 'badge-sorria',
+    'Medic': 'badge-medic',
+    'Felício': 'badge-felicio'
+  };
+  return classes[empresa] || 'badge-default';
+}
+
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
@@ -127,7 +142,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const clienteModalEl = document.getElementById('clienteModal');
   const viewClienteModalEl = document.getElementById('viewClienteModal');
   const historicoModalEl = document.getElementById('historicoModal');
-  
+  const parcelamentoModalEl = document.getElementById('parcelamentoModal');
+  const usuarioModalEl = document.getElementById('usuarioModal');
+if (usuarioModalEl) {
+  usuarioModal = M.Modal.init(usuarioModalEl, {
+    dismissible: true,
+    onCloseEnd: resetUsuarioForm
+  });
+}
+
+
+  if (parcelamentoModalEl) {
+    parcelamentoModal = M.Modal.init(parcelamentoModalEl, {
+      dismissible: true,
+      onCloseEnd: resetParcelamentoForm
+    });
+  }
+
   if (clienteModalEl) {
     appState.modals.cliente = M.Modal.init(clienteModalEl, {
       dismissible: true,
@@ -439,7 +470,7 @@ function marcarTodasLidas() {
 /**
  * Registra uma alteração no histórico
  */
-async function registrarHistorico(idCliente, tipoAlteracao, alteracoes, observacao = null) {
+async function registrarHistorico(id_cliente, tipoAlteracao, alteracoes, observacao = null) {
   try {
     if (!appState.user) return;
     
@@ -447,7 +478,7 @@ async function registrarHistorico(idCliente, tipoAlteracao, alteracoes, observac
     
     if (tipoAlteracao === 'CRIACAO') {
       registros.push({
-        id_cliente: idCliente,
+        id_cliente: id_cliente,
         email_usuario: appState.user.email,
         tipo_alteracao: 'CRIACAO',
         campo_alterado: null,
@@ -458,7 +489,7 @@ async function registrarHistorico(idCliente, tipoAlteracao, alteracoes, observac
     } else if (tipoAlteracao === 'EDICAO' && alteracoes) {
       for (const [campo, valores] of Object.entries(alteracoes)) {
         registros.push({
-          id_cliente: idCliente,
+          id_cliente: id_cliente,
           email_usuario: appState.user.email,
           tipo_alteracao: 'EDICAO',
           campo_alterado: campo,
@@ -469,7 +500,7 @@ async function registrarHistorico(idCliente, tipoAlteracao, alteracoes, observac
       }
     } else if (tipoAlteracao === 'EXCLUSAO') {
       registros.push({
-        id_cliente: idCliente,
+        id_cliente: id_cliente,
         email_usuario: appState.user.email,
         tipo_alteracao: 'EXCLUSAO',
         campo_alterado: null,
@@ -704,12 +735,12 @@ function detectarAlteracoes(dadosAntigos, dadosNovos) {
 /**
  * Carrega comentários de um cliente
  */
-async function carregarComentarios(idCliente) {
+async function carregarComentarios(id_cliente) {
   try {
     const { data, error } = await supabaseClient
       .from('comentarios_clientes')
       .select('*')
-      .eq('id_cliente', idCliente)
+      .eq('id_cliente', id_cliente)
       .order('timestamp', { ascending: false });
     
     if (error) throw error;
@@ -724,7 +755,7 @@ async function carregarComentarios(idCliente) {
 /**
  * Renderiza comentários no modal
  */
-function renderComentarios(comentarios, idCliente) {
+function renderComentarios(comentarios, id_cliente) {
   const container = document.getElementById('comentariosContainer');
   if (!container) return;
   
@@ -749,7 +780,7 @@ function renderComentarios(comentarios, idCliente) {
           </span>
           <button 
             class="btn blue waves-effect waves-light" 
-            onclick="adicionarComentario(${idCliente})"
+            onclick="adicionarComentario(${id_cliente})"
             style="padding: 0 20px; height: 36px; line-height: 36px;">
             <i class="material-icons left" style="margin-right: 8px;">send</i>
             Enviar
@@ -807,7 +838,7 @@ function renderComentarios(comentarios, idCliente) {
               <button class="comentario-btn edit" onclick="editarComentario(${comentario.id})" title="Editar">
                 <i class="material-icons">edit</i>
               </button>
-              <button class="comentario-btn delete" onclick="deletarComentario(${comentario.id}, ${idCliente})" title="Excluir">
+              <button class="comentario-btn delete" onclick="deletarComentario(${comentario.id}, ${id_cliente})" title="Excluir">
                 <i class="material-icons">delete</i>
               </button>
             </div>
@@ -836,7 +867,7 @@ function renderComentarios(comentarios, idCliente) {
 /**
  * Adiciona novo comentário
  */
-async function adicionarComentario(idCliente) {
+async function adicionarComentario(id_cliente) {
   try {
     const textarea = document.getElementById('novoComentario');
     const comentario = textarea.value.trim();
@@ -854,7 +885,7 @@ async function adicionarComentario(idCliente) {
     const { data, error } = await supabaseClient
       .from('comentarios_clientes')
       .insert([{
-        id_cliente: idCliente,
+        id_cliente: id_cliente,
         email_usuario: appState.user.email,
         nome_usuario: appState.user.nome,
         comentario: comentario
@@ -869,11 +900,11 @@ async function adicionarComentario(idCliente) {
     document.getElementById('charCount').textContent = '0';
     
     // Recarregar comentários
-    const comentarios = await carregarComentarios(idCliente);
-    renderComentarios(comentarios, idCliente);
+    const comentarios = await carregarComentarios(id_cliente);
+    renderComentarios(comentarios, id_cliente);
     
     // Log de auditoria
-    await logAuditoria('COMENTARIO_ADICIONADO', idCliente, `Comentário adicionado`);
+    await logAuditoria('COMENTARIO_ADICIONADO', id_cliente, `Comentário adicionado`);
     
     M.toast({html: 'Comentário adicionado!', classes: 'green'});
   } catch (error) {
@@ -961,7 +992,7 @@ async function salvarEdicaoComentario(idComentario) {
 /**
  * Deletar comentário
  */
-async function deletarComentario(idComentario, idCliente) {
+async function deletarComentario(idComentario, id_cliente) {
   if (!confirm('Tem certeza que deseja excluir este comentário?')) return;
   
   try {
@@ -973,11 +1004,11 @@ async function deletarComentario(idComentario, idCliente) {
     if (error) throw error;
     
     // Recarregar comentários
-    const comentarios = await carregarComentarios(idCliente);
-    renderComentarios(comentarios, idCliente);
+    const comentarios = await carregarComentarios(id_cliente);
+    renderComentarios(comentarios, id_cliente);
     
     // Log de auditoria
-    await logAuditoria('COMENTARIO_DELETADO', idCliente, `Comentário deletado`);
+    await logAuditoria('COMENTARIO_DELETADO', id_cliente, `Comentário deletado`);
     
     M.toast({html: 'Comentário excluído!', classes: 'green'});
   } catch (error) {
@@ -985,6 +1016,309 @@ async function deletarComentario(idComentario, idCliente) {
     M.toast({html: 'Erro ao deletar comentário', classes: 'red'});
   }
 }
+
+// ========================================
+// PARCELAMENTOS
+// ========================================
+
+/**
+ * Carrega parcelamentos de um cliente
+ */
+async function carregarParcelamentos(id_cliente) {
+  try {
+    const { data, error } = await supabaseClient
+      .from('parcelamentos')
+      .select('*')
+      .eq('id_cliente', id_cliente)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return data || [];
+  } catch (error) {
+    console.error('❌ Erro ao carregar parcelamentos:', error);
+    return [];
+  }
+}
+
+/**
+ * Renderiza parcelamentos no modal
+ */
+function renderParcelamentos(parcelamentos, id_cliente) {
+  const container = document.getElementById('parcelamentosContainer');
+  if (!container) return;
+  
+  let html = `
+    <div class="parcelamentos-section">
+      <h6>
+        <i class="material-icons">payment</i>
+        Parcelamentos Fiscais
+        ${parcelamentos.length > 0 ? `<span class="badge-parcelamentos">${parcelamentos.length}</span>` : ''}
+      </h6>
+      
+      <!-- Botão para adicionar -->
+      <div style="margin-bottom: 20px;">
+        <button 
+          class="btn blue waves-effect waves-light" 
+          onclick="openNovoParcelamentoModal(${id_cliente})"
+          style="padding: 0 20px; height: 40px; line-height: 40px;">
+          <i class="material-icons left" style="margin-right: 8px;">add</i>
+          Adicionar Parcelamento
+        </button>
+      </div>
+      
+      <!-- Lista de parcelamentos -->
+      <div class="parcelamentos-lista">
+  `;
+  
+  if (parcelamentos.length === 0) {
+    html += `
+      <div class="parcelamentos-vazio">
+        <i class="material-icons">receipt_long</i>
+        <p>Nenhum parcelamento cadastrado. Adicione o primeiro!</p>
+      </div>
+    `;
+  } else {
+    parcelamentos.forEach(parc => {
+      const dataEnvio = parc.data_envio_guia 
+        ? new Date(parc.data_envio_guia).toLocaleDateString('pt-BR')
+        : '-';
+      
+      // Verificar proximidade do vencimento
+      let alertaVencimento = '';
+      if (parc.data_envio_guia) {
+        const hoje = new Date();
+        const vencimento = new Date(parc.data_envio_guia);
+        const diasRestantes = Math.ceil((vencimento - hoje) / (1000 * 60 * 60 * 24));
+        
+        if (diasRestantes >= 0 && diasRestantes <= 7) {
+          const classeUrgencia = diasRestantes <= 3 ? 'urgente' : '';
+          alertaVencimento = `
+            <div class="alert-vencimento ${classeUrgencia}">
+              <i class="material-icons">schedule</i>
+              <span>
+                <strong>${diasRestantes === 0 ? 'Vence HOJE!' : diasRestantes === 1 ? 'Vence AMANHÃ!' : `Vence em ${diasRestantes} dias`}</strong>
+              </span>
+            </div>
+          `;
+        }
+      }
+      
+      html += `
+        <div class="parcelamento-item">
+          <div class="parcelamento-header">
+            <div class="parcelamento-tipo">
+              <i class="material-icons">account_balance</i>
+              ${parc.tipo_parcelamento}
+            </div>
+            ${parc.status_parcela ? `<span class="parcelamento-status">${parc.status_parcela}</span>` : ''}
+          </div>
+          
+          <div class="parcelamento-detalhes">
+            <div class="parcelamento-detail-item">
+              <i class="material-icons">event</i>
+              <span>Envio: ${dataEnvio}</span>
+            </div>
+            <div class="parcelamento-detail-item">
+              <i class="material-icons">credit_card</i>
+              <span>${parc.modo_pagamento || 'Boleto'}</span>
+            </div>
+          </div>
+          
+          ${alertaVencimento}
+          
+          ${parc.observacoes ? `
+            <div class="parcelamento-observacoes">
+              <strong><i class="material-icons tiny" style="vertical-align: middle;">info</i> Observações:</strong><br>
+              ${parc.observacoes}
+            </div>
+          ` : ''}
+          
+          <div class="parcelamento-acoes">
+            <button class="parcelamento-btn edit" onclick="editParcelamento(${parc.id_parcelamento})" title="Editar">
+              <i class="material-icons">edit</i>
+            </button>
+            <button class="parcelamento-btn delete" onclick="deleteParcelamento(${parc.id_parcelamento}, ${id_cliente})" title="Excluir">
+              <i class="material-icons">delete</i>
+            </button>
+          </div>
+        </div>
+      `;
+    });
+  }
+  
+  html += `
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+}
+
+/**
+ * Abre modal para novo parcelamento
+ */
+function openNovoParcelamentoModal(id_cliente) {
+  resetParcelamentoForm();
+  document.getElementById('parcelamentoModalTitle').textContent = 'Novo Parcelamento';
+  document.getElementById('parcelamento_id_cliente').value = id_cliente;
+  document.getElementById('parcelamento_id').value = '';
+  
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('#parcelamentoModal select'));
+    M.updateTextFields();
+  }, 100);
+  
+  if (parcelamentoModal) parcelamentoModal.open();
+  
+  setTimeout(() => {
+    const modalContent = document.querySelector('#parcelamentoModal .modal-content');
+    if (modalContent) modalContent.scrollTop = 0;
+  }, 100);
+}
+
+/**
+ * Edita parcelamento existente
+ */
+async function editParcelamento(idParcelamento) {
+  try {
+    const { data, error } = await supabaseClient
+      .from('parcelamentos')
+      .select('*')
+      .eq('id_parcelamento', idParcelamento)
+      .single();
+    
+    if (error) throw error;
+    
+    document.getElementById('parcelamentoModalTitle').textContent = 'Editar Parcelamento';
+    document.getElementById('parcelamento_id').value = data.id_parcelamento;
+    document.getElementById('parcelamento_id_cliente').value = data.id_cliente;
+    document.getElementById('parcelamento_tipo').value = data.tipo_parcelamento || '';
+    document.getElementById('parcelamento_status_parcela').value = data.status_parcela || '';
+    document.getElementById('parcelamento_data_envio').value = data.data_envio_guia || '';
+    document.getElementById('parcelamento_modo_pagamento').value = data.modo_pagamento || 'Boleto';
+    document.getElementById('parcelamento_observacoes').value = data.observacoes || '';
+    
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#parcelamentoModal select'));
+      M.updateTextFields();
+      M.textareaAutoResize(document.getElementById('parcelamento_observacoes'));
+    }, 100);
+    
+    if (parcelamentoModal) parcelamentoModal.open();
+    
+    setTimeout(() => {
+      const modalContent = document.querySelector('#parcelamentoModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
+  } catch (error) {
+    console.error('❌ Erro ao carregar parcelamento:', error);
+    M.toast({html: 'Erro ao carregar parcelamento', classes: 'red'});
+  }
+}
+
+/**
+ * Salva parcelamento (criar ou atualizar)
+ */
+async function salvarParcelamento() {
+  try {
+    const idParcelamento = document.getElementById('parcelamento_id').value;
+    const id_cliente = document.getElementById('parcelamento_id_cliente').value;
+    const tipo = document.getElementById('parcelamento_tipo').value.trim();
+    const statusParcela = document.getElementById('parcelamento_status_parcela').value.trim();
+    const dataEnvio = document.getElementById('parcelamento_data_envio').value || null;
+    const modoPagamento = document.getElementById('parcelamento_modo_pagamento').value;
+    const observacoes = document.getElementById('parcelamento_observacoes').value.trim();
+    
+    if (!tipo) {
+      M.toast({html: 'Preencha o tipo de parcelamento', classes: 'orange'});
+      return;
+    }
+    
+    const parcelamentoData = {
+      id_cliente: parseInt(id_cliente),
+      tipo_parcelamento: tipo,
+      status_parcela: statusParcela || null,
+      data_envio_guia: dataEnvio,
+      modo_pagamento: modoPagamento,
+      observacoes: observacoes || null,
+      updated_at: new Date().toISOString()
+    };
+    
+    if (idParcelamento) {
+      // Atualizar
+      const { error } = await supabaseClient
+        .from('parcelamentos')
+        .update(parcelamentoData)
+        .eq('id_parcelamento', idParcelamento);
+      
+      if (error) throw error;
+      
+      await logAuditoria('PARCELAMENTO_ATUALIZADO', id_cliente, `Parcelamento ${tipo} atualizado`);
+      M.toast({html: 'Parcelamento atualizado!', classes: 'green'});
+    } else {
+      // Criar novo
+      const { error } = await supabaseClient
+        .from('parcelamentos')
+        .insert([parcelamentoData]);
+      
+      if (error) throw error;
+      
+      await logAuditoria('PARCELAMENTO_CRIADO', id_cliente, `Novo parcelamento: ${tipo}`);
+      M.toast({html: 'Parcelamento adicionado!', classes: 'green'});
+    }
+    
+    if (parcelamentoModal) parcelamentoModal.close();
+    
+    // Recarregar parcelamentos se o modal de visualização estiver aberto
+    if (window.currentViewingClienteId) {
+      const parcelamentos = await carregarParcelamentos(window.currentViewingClienteId);
+      renderParcelamentos(parcelamentos, window.currentViewingClienteId);
+    }
+    
+    verificarNotificacoes(); // Atualizar notificações
+  } catch (error) {
+    console.error('❌ Erro ao salvar parcelamento:', error);
+    M.toast({html: `Erro: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Deleta parcelamento
+ */
+async function deleteParcelamento(idParcelamento, id_cliente) {
+  if (!confirm('Tem certeza que deseja excluir este parcelamento?')) return;
+  
+  try {
+    const { error } = await supabaseClient
+      .from('parcelamentos')
+      .delete()
+      .eq('id_parcelamento', idParcelamento);
+    
+    if (error) throw error;
+    
+    M.toast({html: 'Parcelamento excluído!', classes: 'green'});
+    await logAuditoria('PARCELAMENTO_DELETADO', id_cliente, `Parcelamento ID ${idParcelamento} deletado`);
+    
+    // Recarregar parcelamentos
+    const parcelamentos = await carregarParcelamentos(id_cliente);
+    renderParcelamentos(parcelamentos, id_cliente);
+  } catch (error) {
+    console.error('❌ Erro ao deletar parcelamento:', error);
+    M.toast({html: 'Erro ao deletar parcelamento', classes: 'red'});
+  }
+}
+
+/**
+ * Reseta formulário de parcelamento
+ */
+function resetParcelamentoForm() {
+  document.getElementById('parcelamentoForm').reset();
+  document.getElementById('parcelamento_id').value = '';
+  document.getElementById('parcelamento_id_cliente').value = '';
+  M.updateTextFields();
+}
+
 
 // ========================================
 // DASHBOARD
@@ -1309,7 +1643,7 @@ function renderClientes() {
       <td>${cliente.cpf_cnpj || '-'}</td>
       <td>${cliente.uf || '-'}</td>
       <td>${cliente.situacao || '-'}</td>
-      <td>${cliente.empresa_responsavel || '-'}</td>
+      <td>${cliente.empresa_responsavel ? `<span class="badge-empresa ${getBadgeEmpresaClass(cliente.empresa_responsavel)}">${cliente.empresa_responsavel}</span>` : '-'}</td>
       <td>${cliente.regime_tributacao || '-'}</td>
       <td>
         <a href="#!" class="btn-small blue tooltipped" data-position="top" data-tooltip="Visualizar" onclick="viewCliente(${cliente.id_cliente})">
@@ -1585,6 +1919,9 @@ async function viewCliente(id_cliente) {
     // Carregar comentários
     const comentarios = await carregarComentarios(id_cliente);
     
+    // Carregar parcelamentos
+    const parcelamentos = await carregarParcelamentos(id_cliente);
+
     const formatDate = (dateStr) => {
       if (!dateStr) return '-';
       const date = new Date(dateStr);
@@ -1742,11 +2079,16 @@ async function viewCliente(id_cliente) {
         
         <!-- Seção de Comentários -->
         <div id="comentariosContainer"></div>
+
+        <!-- Seção de Parcelamentos -->
+        <div id="parcelamentosContainer"></div>
+
       </div>
     `;
     
     document.getElementById('clienteDetalhes').innerHTML = detalhesHtml;
     renderComentarios(comentarios, id_cliente);
+    renderParcelamentos(parcelamentos, id_cliente);
     if (appState.modals.viewCliente) appState.modals.viewCliente.open();
     setTimeout(() => {
       const modalContent = document.querySelector('#viewClienteModal .modal-content');
@@ -2047,7 +2389,11 @@ async function loadUsuarios() {
         <td>${usuario.nome}</td>
         <td>${usuario.empresa}</td>
         <td>${usuario.papel}</td>
-        <td>${usuario.ativo ? 'Sim' : 'Não'}</td>
+        <td>
+          <span class="status-badge ${usuario.ativo ? 'status-ativo' : 'status-inativo'}">
+            ${usuario.ativo ? 'Ativo' : 'Inativo'}
+          </span>
+        </td>
         <td>
           <a href="#!" class="btn-small green" onclick="editUsuario('${usuario.email}')"><i class="material-icons">edit</i></a>
           <a href="#!" class="btn-small red" onclick="deleteUsuario('${usuario.email}')"><i class="material-icons">delete</i></a>
@@ -2063,6 +2409,17 @@ async function loadUsuarios() {
 // Filtro de usuários com debounce
 let todosUsuarios = [];
 let usuariosTimeout = null;
+
+// Modal de usuário
+let usuarioModal = null;
+
+// Auditoria
+let todosLogsAuditoria = [];
+let logsAuditoriaFiltrados = [];
+let auditoriaOrdenacao = {
+  campo: 'timestamp',
+  direcao: 'desc'
+};
 
 function filterUsuarios() {
   clearTimeout(usuariosTimeout);
@@ -2103,30 +2460,241 @@ function filterUsuarios() {
   }, 300);
 }
 
-function editUsuario(email) {
-  M.toast({html: 'Edição de usuário em desenvolvimento', classes: 'blue'});
+/**
+ * Abre modal para criar novo usuário
+ */
+function openNovoUsuarioModal() {
+  console.log('➕ Novo usuário');
+  document.getElementById('usuario_modo_edicao').value = 'false';
+  resetUsuarioForm();
+  document.getElementById('usuarioModalTitle').textContent = 'Novo Usuário';
+  document.getElementById('usuario_email').disabled = false;
+  document.getElementById('alterarSenhaInfo').style.display = 'none';
+  document.getElementById('senhaObrigatoriaLabel').style.display = 'inline';
+  document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'inline';
+  document.getElementById('usuario_senha').required = true;
+  document.getElementById('usuario_confirmar_senha').required = true;
+  
+  setTimeout(() => {
+    M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
+    M.updateTextFields();
+  }, 100);
+  
+  if (usuarioModal) usuarioModal.open();
+  
+  setTimeout(() => {
+    const modalContent = document.querySelector('#usuarioModal .modal-content');
+    if (modalContent) modalContent.scrollTop = 0;
+  }, 100);
 }
 
+/**
+ * Abre modal para editar usuário existente
+ */
+async function editUsuario(email) {
+  try {
+    console.log(`✏️ Editar usuário ${email}`);
+    
+    const { data, error } = await supabaseClient
+      .from('usuarios')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error) throw error;
+    
+    document.getElementById('usuario_modo_edicao').value = 'true';
+    document.getElementById('usuarioModalTitle').textContent = 'Editar Usuário';
+    
+    document.getElementById('usuario_email').value = data.email;
+    document.getElementById('usuario_email').disabled = true;
+    document.getElementById('usuario_email_original').value = data.email;
+    document.getElementById('usuario_nome').value = data.nome || '';
+    document.getElementById('usuario_empresa').value = data.empresa || '';
+    document.getElementById('usuario_papel').value = data.papel || '';
+    document.getElementById('usuario_status').value = data.ativo ? 'true' : 'false';
+    
+    document.getElementById('alterarSenhaInfo').style.display = 'block';
+    document.getElementById('senhaObrigatoriaLabel').style.display = 'none';
+    document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'none';
+    document.getElementById('usuario_senha').required = false;
+    document.getElementById('usuario_confirmar_senha').required = false;
+    document.getElementById('usuario_senha').value = '';
+    document.getElementById('usuario_confirmar_senha').value = '';
+    
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
+      M.updateTextFields();
+    }, 100);
+    
+    if (usuarioModal) usuarioModal.open();
+    
+    setTimeout(() => {
+      const modalContent = document.querySelector('#usuarioModal .modal-content');
+      if (modalContent) modalContent.scrollTop = 0;
+    }, 100);
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
+  }
+}
+
+/**
+ * Salva usuário (criar ou atualizar)
+ */
+async function salvarUsuario() {
+  try {
+    const modoEdicao = document.getElementById('usuario_modo_edicao').value === 'true';
+    const email = document.getElementById('usuario_email').value.trim();
+    const nome = document.getElementById('usuario_nome').value.trim();
+    const empresa = document.getElementById('usuario_empresa').value;
+    const papel = document.getElementById('usuario_papel').value;
+    const statusNovo = document.getElementById('usuario_status').value === 'true';
+    const senha = document.getElementById('usuario_senha').value;
+    const confirmarSenha = document.getElementById('usuario_confirmar_senha').value;
+    
+    if (!email || !nome || !empresa || !papel) {
+      M.toast({html: 'Preencha todos os campos obrigatórios', classes: 'orange'});
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      M.toast({html: 'Email inválido', classes: 'red'});
+      return;
+    }
+    
+    if (!modoEdicao && (!senha || senha.length < 6)) {
+      M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
+      return;
+    }
+    
+    if (senha) {
+      if (senha.length < 6) {
+        M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
+        return;
+      }
+      
+      if (senha !== confirmarSenha) {
+        M.toast({html: 'As senhas não coincidem', classes: 'red'});
+        return;
+      }
+    }
+    
+    if (modoEdicao) {
+      const emailOriginal = document.getElementById('usuario_email_original').value;
+      
+      const { data: usuarioAtual } = await supabaseClient
+        .from('usuarios')
+        .select('ativo, nome')
+        .eq('email', emailOriginal)
+        .single();
+      
+      if (usuarioAtual && usuarioAtual.ativo !== statusNovo) {
+        const mensagem = statusNovo 
+          ? `Tem certeza que deseja ATIVAR o usuário "${usuarioAtual.nome}"?\n\nO usuário poderá acessar o sistema novamente.`
+          : `Tem certeza que deseja INATIVAR o usuário "${usuarioAtual.nome}"?\n\nO usuário não poderá mais acessar o sistema.`;
+        
+        if (!confirm(mensagem)) return;
+      }
+    }
+    
+    const usuarioData = {
+      email: email,
+      nome: nome,
+      empresa: empresa,
+      papel: papel,
+      ativo: statusNovo
+    };
+    
+    if (senha) {
+      usuarioData.senha = senha;
+    }
+    
+    if (modoEdicao) {
+      const emailOriginal = document.getElementById('usuario_email_original').value;
+      
+      const { error } = await supabaseClient
+        .from('usuarios')
+        .update(usuarioData)
+        .eq('email', emailOriginal);
+      
+      if (error) throw error;
+      
+      const statusMensagem = statusNovo ? 'ativado' : 'inativado';
+      await logAuditoria('USUARIO_ATUALIZADO', null, `Usuário ${email} atualizado - Status: ${statusMensagem}`);
+      M.toast({html: 'Usuário atualizado com sucesso!', classes: 'green'});
+    } else {
+      const { data: existente } = await supabaseClient
+        .from('usuarios')
+        .select('email')
+        .eq('email', email)
+        .single();
+      
+      if (existente) {
+        M.toast({html: 'Email já cadastrado', classes: 'red'});
+        return;
+      }
+      
+      const { error } = await supabaseClient
+        .from('usuarios')
+        .insert([usuarioData]);
+      
+      if (error) throw error;
+      
+      await logAuditoria('USUARIO_CRIADO', null, `Novo usuário: ${email}`);
+      M.toast({html: 'Usuário criado com sucesso!', classes: 'green'});
+    }
+    
+    if (usuarioModal) usuarioModal.close();
+    loadUsuarios();
+  } catch (error) {
+    console.error('❌ Erro ao salvar:', error);
+    M.toast({html: `Erro: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Deleta usuário
+ */
 async function deleteUsuario(email) {
-  if (!confirm('Deletar este usuário?')) return;
+  if (appState.user && appState.user.email === email) {
+    M.toast({html: 'Você não pode excluir seu próprio usuário', classes: 'red'});
+    return;
+  }
+  
+  if (!confirm(`Tem certeza que deseja excluir o usuário ${email}?`)) return;
   
   try {
-    const { error } = await supabaseClient.from('usuarios').delete().eq('email', email);
+    const { error } = await supabaseClient
+      .from('usuarios')
+      .delete()
+      .eq('email', email);
+    
     if (error) throw error;
-    M.toast({html: 'Usuário deletado!', classes: 'green'});
+    
+    M.toast({html: 'Usuário excluído!', classes: 'green'});
     await logAuditoria('USUARIO_DELETADO', null, `Usuário ${email} deletado`);
     loadUsuarios();
   } catch (error) {
     console.error('❌ Erro:', error);
-    M.toast({html: 'Erro ao deletar', classes: 'red'});
+    M.toast({html: 'Erro ao excluir usuário', classes: 'red'});
   }
 }
 
-function openNovoUsuarioModal() {
-  M.toast({html: 'Criação de usuário em desenvolvimento', classes: 'blue'});
+/**
+ * Reseta o formulário de usuário
+ */
+function resetUsuarioForm() {
+  document.getElementById('usuarioForm').reset();
+  document.getElementById('usuario_modo_edicao').value = 'false';
+  document.getElementById('usuario_email_original').value = '';
+  document.getElementById('usuario_email').disabled = false;
+  M.updateTextFields();
 }
 
-// ========================================
+
+/// ========================================
 // AUDITORIA
 // ========================================
 async function loadAuditoria() {
@@ -2135,28 +2703,13 @@ async function loadAuditoria() {
       .from('auditoria')
       .select('*')
       .order('timestamp', { ascending: false })
-      .limit(100);
+      .limit(500); // Limitar para performance
     
     if (error) throw error;
     
-    const tbody = document.getElementById('auditoriaTableBody');
-    tbody.innerHTML = '';
-    
-    if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="center-align">Nenhum log</td></tr>';
-      return;
-    }
-    
-    data.forEach(log => {
-      const row = tbody.insertRow();
-      row.innerHTML = `
-        <td>${new Date(log.timestamp).toLocaleString('pt-BR')}</td>
-        <td>${log.email_usuario}</td>
-        <td>${log.acao}</td>
-        <td>${log.id_cliente_afetado || '-'}</td>
-        <td>${log.detalhes}</td>
-      `;
-    });
+    todosLogsAuditoria = data;
+    logsAuditoriaFiltrados = data;
+    renderAuditoria();
   } catch (error) {
     console.error('❌ Erro:', error);
     M.toast({html: 'Erro ao carregar auditoria', classes: 'red'});
@@ -2175,6 +2728,154 @@ async function logAuditoria(acao, id_cliente_afetado, detalhes) {
     if (error) throw error;
   } catch (error) {
     console.error('❌ Erro auditoria:', error);
+  }
+}
+
+/**
+ * Toggle do painel de filtros de auditoria
+ */
+function toggleFiltrosAuditoria() {
+  const filtrosPanel = document.getElementById('filtrosAuditoria');
+  if (filtrosPanel.style.display === 'none') {
+    filtrosPanel.style.display = 'block';
+    setTimeout(() => {
+      M.FormSelect.init(document.querySelectorAll('#filtrosAuditoria select'));
+    }, 100);
+  } else {
+    filtrosPanel.style.display = 'none';
+  }
+}
+
+/**
+ * Aplica filtros na auditoria
+ */
+function aplicarFiltrosAuditoria() {
+  const dataInicio = document.getElementById('filtroAuditoriaDataInicio').value;
+  const dataFim = document.getElementById('filtroAuditoriaDataFim').value;
+  const usuario = document.getElementById('filtroAuditoriaUsuario').value.toLowerCase().trim();
+  const acao = document.getElementById('filtroAuditoriaAcao').value;
+  const id_cliente = document.getElementById('filtroAuditoriaCliente').value.trim();
+  
+  logsAuditoriaFiltrados = todosLogsAuditoria.filter(log => {
+    // Filtro de data início
+    if (dataInicio) {
+      const logData = new Date(log.timestamp);
+      const filtroData = new Date(dataInicio);
+      if (logData < filtroData) return false;
+    }
+    
+    // Filtro de data fim
+    if (dataFim) {
+      const logData = new Date(log.timestamp);
+      const filtroData = new Date(dataFim);
+      filtroData.setHours(23, 59, 59, 999); // Incluir todo o dia
+      if (logData > filtroData) return false;
+    }
+    
+    // Filtro de usuário
+    if (usuario && !log.email_usuario.toLowerCase().includes(usuario)) {
+      return false;
+    }
+    
+    // Filtro de ação
+    if (acao && log.acao !== acao) {
+      return false;
+    }
+    
+    // Filtro de ID cliente
+    if (id_cliente && log.id_cliente_afetado != id_cliente) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  renderAuditoria();
+}
+
+/**
+ * Limpa filtros de auditoria
+ */
+function limparFiltrosAuditoria() {
+  document.getElementById('filtroAuditoriaDataInicio').value = '';
+  document.getElementById('filtroAuditoriaDataFim').value = '';
+  document.getElementById('filtroAuditoriaUsuario').value = '';
+  document.getElementById('filtroAuditoriaAcao').value = '';
+  document.getElementById('filtroAuditoriaCliente').value = '';
+  
+  M.FormSelect.init(document.querySelectorAll('#filtrosAuditoria select'));
+  M.updateTextFields();
+  
+  logsAuditoriaFiltrados = todosLogsAuditoria;
+  renderAuditoria();
+}
+
+/**
+ * Ordena logs de auditoria
+ */
+function ordenarAuditoria(campo) {
+  if (auditoriaOrdenacao.campo === campo) {
+    auditoriaOrdenacao.direcao = auditoriaOrdenacao.direcao === 'asc' ? 'desc' : 'asc';
+  } else {
+    auditoriaOrdenacao.campo = campo;
+    auditoriaOrdenacao.direcao = 'asc';
+  }
+  
+  renderAuditoria();
+}
+
+/**
+ * Renderiza tabela de auditoria
+ */
+function renderAuditoria() {
+  const tbody = document.getElementById('auditoriaTableBody');
+  const infoAuditoria = document.getElementById('infoAuditoria');
+  
+  // Aplicar ordenação
+  const logsOrdenados = [...logsAuditoriaFiltrados].sort((a, b) => {
+    let valorA = a[auditoriaOrdenacao.campo];
+    let valorB = b[auditoriaOrdenacao.campo];
+    
+    if (valorA === null || valorA === undefined) valorA = '';
+    if (valorB === null || valorB === undefined) valorB = '';
+    
+    // Para timestamps, comparar como datas
+    if (auditoriaOrdenacao.campo === 'timestamp') {
+      valorA = new Date(valorA);
+      valorB = new Date(valorB);
+    } else {
+      valorA = String(valorA).toLowerCase();
+      valorB = String(valorB).toLowerCase();
+    }
+    
+    if (auditoriaOrdenacao.direcao === 'asc') {
+      return valorA > valorB ? 1 : valorA < valorB ? -1 : 0;
+    } else {
+      return valorA < valorB ? 1 : valorA > valorB ? -1 : 0;
+    }
+  });
+  
+  tbody.innerHTML = '';
+  
+  if (logsOrdenados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="center-align">Nenhum registro de auditoria encontrado</td></tr>';
+    if (infoAuditoria) infoAuditoria.textContent = 'Nenhum registro encontrado';
+    return;
+  }
+  
+  logsOrdenados.forEach(log => {
+    const row = tbody.insertRow();
+    row.innerHTML = `
+      <td>${new Date(log.timestamp).toLocaleString('pt-BR')}</td>
+      <td>${log.email_usuario}</td>
+      <td><span class="badge blue white-text">${log.acao}</span></td>
+      <td>${log.id_cliente_afetado || '-'}</td>
+      <td>${log.detalhes}</td>
+    `;
+  });
+  
+  if (infoAuditoria) {
+    infoAuditoria.textContent = `Exibindo ${logsOrdenados.length} de ${todosLogsAuditoria.length} registros`;
   }
 }
 
