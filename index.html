@@ -814,28 +814,77 @@
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       transition: all 0.2s ease;
     }
+
+    /* Estilos para tela de login */
+    #loginSection {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #loginSection .card {
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      border-radius: 12px;
+    }
+
+    #loginSection .material-icons.large {
+      font-size: 80px;
+      margin-bottom: 10px;
+    }
+
+    #loginSection .card-title {
+      margin: 10px 0;
+      font-weight: 500;
+    }
+
+    /* Ocultar navbar quando estiver na tela de login */
+    body.login-mode nav,
+    body.login-mode footer {
+      display: none;
+    }
+
+    
+
+
   </style>
 </head>
 <body>
   <!-- Navbar -->
-  <nav class="blue darken-2">
+  <nav class="blue darken-1">
     <div class="nav-wrapper">
-      <a href="#" class="brand-logo">Gestão de Clientes</a>
-      <ul id="nav-mobile" class="right hide-on-med-and-down">
-        <li><a href="#" onclick="showDashboard()"><i class="material-icons left">dashboard</i>Dashboard</a></li>
-        <li><a href="#" onclick="showClientes()"><i class="material-icons left">people</i>Clientes</a></li>
-        <li><a href="#" onclick="showUsuarios()"><i class="material-icons left">person</i>Usuários</a></li>
-        <li><a href="#" onclick="showAuditoria()"><i class="material-icons left">history</i>Auditoria</a></li>
-        <li class="notification-badge">
-          <a href="#!" class="dropdown-trigger" data-target="notificationsDropdown">
+      <a href="#!" class="brand-logo">
+        <i class="material-icons left">business</i>
+        Gestão Contábil
+      </a>
+      <ul id="nav-mobile" class="right">
+        <!-- Dropdown de Notificações -->
+        <li>
+          <a class="dropdown-trigger notification-badge" href="#!" data-target="notificationsDropdown">
             <i class="material-icons">notifications</i>
-            <span class="notification-count" id="notificationCount" style="display: none;">0</span>
+            <span id="notificationCount" class="notification-count" style="display: none;">0</span>
           </a>
         </li>
-        <li><a href="#" id="userEmailDisplay">Carregando...</a></li>
+        
+        <!-- Dropdown de Usuário -->
+        <li>
+          <a class="dropdown-trigger" href="#!" data-target="userDropdown">
+            <i class="material-icons left">account_circle</i>
+            <span id="userName">Usuário</span>
+            <i class="material-icons right">arrow_drop_down</i>
+          </a>
+        </li>
       </ul>
     </div>
   </nav>
+  
+  <!-- Dropdown de Usuário -->
+  <ul id="userDropdown" class="dropdown-content">
+    <li><a href="#!" onclick="abrirMeuPerfil()"><i class="material-icons">person</i>Meu Perfil</a></li>
+    <li><a href="#!" onclick="abrirConfiguracoes()"><i class="material-icons">settings</i>Configurações</a></li>
+    <li class="divider"></li>
+    <li><a href="#!" onclick="fazerLogout()"><i class="material-icons">exit_to_app</i>Sair</a></li>
+  </ul>
 
   <!-- Dropdown de Notificações -->
   <ul id="notificationsDropdown" class="dropdown-content">
@@ -847,6 +896,89 @@
   </ul>
 
   <main>
+
+      <!-- ========================================
+      SEÇÃO DE LOGIN
+      Adicione este código no index.html, dentro da tag <main>
+      ======================================== -->
+  <div id="loginSection" class="container" style="margin-top: 100px;">
+    <div class="row">
+      <div class="col s12 m6 offset-m3">
+        <div class="card">
+          <div class="card-content">
+            <div class="center-align" style="margin-bottom: 30px;">
+              <i class="material-icons large blue-text">account_circle</i>
+              <h4 class="card-title">Sistema de Gestão</h4>
+              <p class="grey-text">Sorria / Medic / Felício</p>
+            </div>
+            
+            <form id="loginForm">
+              <div class="input-field">
+                <i class="material-icons prefix">email</i>
+                <input id="login_email" type="email" class="validate" required autocomplete="username">
+                <label for="login_email">Email</label>
+                <span class="helper-text" data-error="Email inválido"></span>
+              </div>
+              
+              <div class="input-field">
+                <i class="material-icons prefix">lock</i>
+                <input id="login_senha" type="password" class="validate" required autocomplete="current-password">
+                <label for="login_senha">Senha</label>
+              </div>
+              
+              <div class="center-align" style="margin-top: 30px;">
+                <button class="btn waves-effect waves-light blue" type="submit" style="width: 100%;">
+                  Entrar
+                  <i class="material-icons right">send</i>
+                </button>
+              </div>
+              
+              <div class="center-align" style="margin-top: 20px;">
+                <a href="#!" onclick="mostrarRecuperarSenha()" class="blue-text">Esqueci minha senha</a>
+              </div>
+            </form>
+          </div>
+        </div>
+        
+        <!-- Card de informações de teste (remover em produção) -->
+        <div class="card blue lighten-5" style="margin-top: 20px;">
+          <div class="card-content">
+            <span class="card-title blue-text">
+              <i class="material-icons left">info</i>
+              Credenciais de Teste
+            </span>
+            <p><strong>Admin Sorria:</strong> admin@sorria.com.br / Admin@2025</p>
+            <p><strong>Admin Medic:</strong> admin@medic.com.br / Admin@2025</p>
+            <p><strong>Gerente:</strong> gerente@sorria.com.br / Gerente@2025</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================
+      MODAL DE RECUPERAR SENHA
+      ======================================== -->
+  <div id="recuperarSenhaModal" class="modal">
+    <div class="modal-content">
+      <h4>Recuperar Senha</h4>
+      <p>Digite seu email para receber instruções de recuperação de senha.</p>
+      
+      <form id="recuperarSenhaForm">
+        <div class="input-field">
+          <i class="material-icons prefix">email</i>
+          <input id="recuperar_email" type="email" class="validate" required>
+          <label for="recuperar_email">Email</label>
+        </div>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <a href="#!" class="modal-close waves-effect waves-blue btn-flat">Cancelar</a>
+      <a href="#!" class="waves-effect waves-blue btn blue" onclick="enviarRecuperacaoSenha()">Enviar</a>
+    </div>
+  </div>
+
+
     <div class="container">
       <!-- Dashboard Section -->
       <div id="dashboardSection" class="section">
@@ -1650,31 +1782,11 @@
         </div>
       </div>
 
-      <div class="form-section" id="senhaSection">
-        <h6>
-          <i class="material-icons">lock</i>
-          Senha
-        </h6>
-        
-        <div class="row">
-          <div class="input-field col s12 m6">
-            <input id="usuario_senha" type="password" minlength="6" autocomplete="new-password">
-            <label for="usuario_senha">Senha <span id="senhaObrigatoriaLabel">*</span></label>
-            <span class="helper-text">Mínimo de 6 caracteres</span>
-          </div>
-          <div class="input-field col s12 m6">
-            <input id="usuario_confirmar_senha" type="password" minlength="6" autocomplete="new-password">
-            <label for="usuario_confirmar_senha">Confirmar Senha <span id="confirmaSenhaObrigatoriaLabel">*</span></label>
-          </div>
-        </div>
-
-        <div class="row" id="alterarSenhaInfo" style="display: none;">
-          <div class="col s12">
-            <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-              <i class="material-icons tiny" style="vertical-align: middle;">info</i>
-              <strong>Atenção:</strong> Preencha apenas se deseja alterar a senha. Deixe em branco para manter a senha atual.
-            </div>
-          </div>
+      <div class="row" id="senhaSection" style="display: none;">
+        <div class="col s12">
+          <button type="button" class="btn-flat blue-text waves-effect waves-light" onclick="abrirModalTrocarSenha()" id="btnTrocarSenha">
+            <i class="material-icons left">lock</i>Alterar Senha
+          </button>
         </div>
       </div>
 
@@ -1688,6 +1800,49 @@
     </a>
     <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarUsuario()">
       <i class="material-icons left">save</i>Salvar Usuário
+    </a>
+  </div>
+</div>
+
+<!-- Modal: Trocar Senha do Usuário -->
+<div id="trocarSenhaModal" class="modal">
+  <div class="modal-content">
+    <h4 style="color: #1976d2; margin-bottom: 20px;">
+      <i class="material-icons" style="vertical-align: middle;">lock</i>
+      Trocar Senha
+    </h4>
+    
+    <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="margin: 0; color: #1976d2;">
+        <strong>Usuário:</strong> <span id="trocarSenhaUsuarioEmail"></span>
+      </p>
+    </div>
+
+    <form id="trocarSenhaForm">
+      <div class="row">
+        <div class="input-field col s12">
+          <input id="trocar_senha_nova" type="password" minlength="6" required autocomplete="new-password">
+          <label for="trocar_senha_nova">Nova Senha *</label>
+          <span class="helper-text">Mínimo de 6 caracteres</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="input-field col s12">
+          <input id="trocar_senha_confirmar" type="password" minlength="6" required autocomplete="new-password">
+          <label for="trocar_senha_confirmar">Confirmar Nova Senha *</label>
+        </div>
+      </div>
+
+      <input type="email" id="trocar_senha_email_usuario" name="email" style="display:none;" autocomplete="username">
+    </form>
+  </div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close waves-effect waves-grey btn-flat" style="margin-right: 10px;">
+      Cancelar
+    </a>
+    <a href="#!" class="waves-effect waves-green btn blue" onclick="salvarNovaSenha()">
+      <i class="material-icons left">save</i>Alterar Senha
     </a>
   </div>
 </div>

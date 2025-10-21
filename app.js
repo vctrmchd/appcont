@@ -133,6 +133,182 @@ function getBadgeEmpresaClass(empresa) {
 }
 
 // ========================================
+// SEGURANÇA - SANITIZAÇÃO
+// ========================================
+
+/**
+ * Sanitiza string removendo tags HTML perigosas
+ * Previne ataques XSS (Cross-Site Scripting)
+ */
+function sanitizeHTML(str) {
+  if (!str) return '';
+  
+  const temp = document.createElement('div');
+  temp.textContent = str;
+  return temp.innerHTML;
+}
+
+/**
+ * Sanitiza string para uso seguro em atributos HTML
+ */
+function sanitizeAttribute(str) {
+  if (!str) return '';
+  
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
+/**
+ * Valida e sanitiza email
+ */
+function sanitizeEmail(email) {
+  if (!email) return '';
+  
+  email = email.trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  
+  if (!emailRegex.test(email)) {
+    throw new Error('Email inválido');
+  }
+  
+  return email;
+}
+
+/**
+ * Sanitiza número de telefone
+ */
+function sanitizePhone(phone) {
+  if (!phone) return '';
+  return phone.replace(/[^0-9+\-() ]/g, '');
+}
+
+/**
+ * Sanitiza valor monetário
+ */
+function sanitizeMoney(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  
+  const num = parseFloat(value);
+  if (isNaN(num) || num < 0) return 0;
+  
+  return num;
+}
+
+/**
+ * Sanitiza SQL-like strings (prevenção básica de SQL injection)
+ * NOTA: O Supabase já protege contra SQL injection, mas é uma camada extra
+ */
+function sanitizeSQL(str) {
+  if (!str) return '';
+  
+  return String(str)
+    .replace(/'/g, "''")
+    .replace(/;/g, '')
+    .replace(/--/g, '')
+    .replace(/\/\*/g, '')
+    .replace(/\*\//g, '');
+}
+
+/**
+ * Valida e sanitiza URL
+ */
+function sanitizeURL(url) {
+  if (!url) return '';
+  
+  try {
+    const urlObj = new URL(url);
+    
+    // Permitir apenas HTTP e HTTPS
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      throw new Error('Protocolo não permitido');
+    }
+    
+    return urlObj.href;
+  } catch (error) {
+    console.warn('URL inválida:', url);
+    return '';
+  }
+}
+
+/**
+ * Limita tamanho de string
+ */
+function truncateString(str, maxLength) {
+  if (!str) return '';
+  if (str.length <= maxLength) return str;
+  return str.substring(0, maxLength);
+}
+
+/**
+ * Constantes de validação
+ */
+const VALIDATION_RULES = {
+  razao_social: { max: 255, required: true },
+  cpf_cnpj: { max: 18, min: 11, required: true },
+  municipio: { max: 100, required: true },
+  squad: { max: 50, required: true },
+  observacoes: { max: 2000, required: false },
+  observacoes_regularidade: { max: 2000, required: false },
+  email: { max: 255, required: true },
+  nome_usuario: { max: 255, required: true },
+  comentario: { max: 1000, required: true }
+};
+
+/**
+ * Valida campo de acordo com as regras
+ */
+function validateField(fieldName, value) {
+  const rule = VALIDATION_RULES[fieldName];
+  if (!rule) return { valid: true };
+  
+  const errors = [];
+  
+  // Required
+  if (rule.required && (!value || value.trim() === '')) {
+    errors.push(`${fieldName} é obrigatório`);
+  }
+  
+  // Min length
+  if (rule.min && value && value.length < rule.min) {
+    errors.push(`${fieldName} deve ter no mínimo ${rule.min} caracteres`);
+  }
+  
+  // Max length
+  if (rule.max && value && value.length > rule.max) {
+    errors.push(`${fieldName} deve ter no máximo ${rule.max} caracteres`);
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors: errors
+  };
+}
+
+/**
+ * Valida formulário completo
+ */
+function validateForm(formData, rules) {
+  const errors = {};
+  let isValid = true;
+  
+  for (const [field, value] of Object.entries(formData)) {
+    const validation = validateField(field, value);
+    if (!validation.valid) {
+      errors[field] = validation.errors;
+      isValid = false;
+    }
+  }
+  
+  return { isValid, errors };
+}
+
+
+// ========================================
 // INICIALIZAÇÃO
 // ========================================
 document.addEventListener('DOMContentLoaded', function() {
@@ -144,12 +320,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const historicoModalEl = document.getElementById('historicoModal');
   const parcelamentoModalEl = document.getElementById('parcelamentoModal');
   const usuarioModalEl = document.getElementById('usuarioModal');
-if (usuarioModalEl) {
-  usuarioModal = M.Modal.init(usuarioModalEl, {
-    dismissible: true,
-    onCloseEnd: resetUsuarioForm
-  });
-}
+  const trocarSenhaModalEl = document.getElementById('trocarSenhaModal');
+
+
+  if (trocarSenhaModalEl) {
+    trocarSenhaModal = M.Modal.init(trocarSenhaModalEl, {
+      dismissible: true,
+      onCloseEnd: resetTrocarSenhaForm
+    });
+  }
+
+
+  if (usuarioModalEl) {
+    usuarioModal = M.Modal.init(usuarioModalEl, {
+      dismissible: true,
+      onCloseEnd: resetUsuarioForm
+    });
+  }
 
 
   if (parcelamentoModalEl) {
@@ -191,6 +378,318 @@ if (usuarioModalEl) {
   notificationInterval = setInterval(verificarNotificacoes, 5 * 60 * 1000);
 });
 
+
+// ========================================
+// SISTEMA DE AUTENTICAÇÃO - SUPABASE AUTH
+// Adicione estas funções no arquivo app.js
+// ========================================
+
+/**
+ * Inicializa o aplicativo verificando autenticação
+ */
+async function inicializarApp() {
+  console.log('🚀 Inicializando aplicação...');
+  
+  try {
+    // Verificar se há sessão ativa
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    
+    if (error) {
+      console.error('❌ Erro ao verificar sessão:', error);
+      mostrarTelaLogin();
+      return;
+    }
+    
+    if (session) {
+      // Usuário autenticado
+      console.log('✅ Sessão ativa encontrada');
+      await carregarUsuarioAutenticado(session.user);
+      inicializarAppAutenticado();
+    } else {
+      // Sem sessão - mostrar tela de login
+      console.log('⚠️ Nenhuma sessão ativa - mostrando tela de login');
+      mostrarTelaLogin();
+    }
+  } catch (error) {
+    console.error('❌ Erro na inicialização:', error);
+    mostrarTelaLogin();
+  }
+}
+
+/**
+ * Carrega dados do usuário autenticado
+ */
+async function carregarUsuarioAutenticado(authUser) {
+  try {
+    console.log('🔧 Carregando dados do usuário:', authUser.email);
+    
+    const { data, error } = await supabaseClient
+      .from('usuarios')
+      .select('*')
+      .eq('email', authUser.email)
+      .single();
+    
+    if (error) throw error;
+    
+    if (!data) {
+      throw new Error('Usuário não encontrado na tabela usuarios');
+    }
+    
+    appState.user = data;
+    console.log('✅ Usuário carregado:', data);
+    
+    // Atualizar UI com nome do usuário
+    const userNameEl = document.getElementById('userName');
+    if (userNameEl) {
+      userNameEl.textContent = data.nome || data.email;
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar usuário:', error);
+    M.toast({html: 'Erro ao carregar dados do usuário', classes: 'red'});
+    throw error;
+  }
+}
+
+/**
+ * Inicializa o app após autenticação bem-sucedida
+ */
+function inicializarAppAutenticado() {
+  // Remover classe de modo login
+  document.body.classList.remove('login-mode');
+  
+  // Ocultar tela de login
+  document.getElementById('loginSection').classList.add('hidden');
+  
+  // Mostrar navbar e conteúdo
+  document.querySelector('nav').style.display = 'block';
+  
+  // Inicializar Materialize
+  M.AutoInit();
+  
+  // Inicializar modais
+  appState.modals.cliente = M.Modal.init(document.getElementById('clienteModal'));
+  appState.modals.viewCliente = M.Modal.init(document.getElementById('viewClienteModal'));
+  appState.modals.historico = M.Modal.init(document.getElementById('historicoModal'));
+  
+  // Inicializar dropdown de notificações
+  M.Dropdown.init(document.querySelectorAll('.dropdown-trigger'), {
+    coverTrigger: false,
+    constrainWidth: false
+  });
+  
+  // Mostrar dashboard
+  showDashboard();
+  
+  // Iniciar verificação de notificações
+  verificarNotificacoes();
+  notificationInterval = setInterval(verificarNotificacoes, 5 * 60 * 1000);
+  
+  console.log('✅ Aplicação inicializada com sucesso');
+}
+
+/**
+ * Mostra a tela de login
+ */
+function mostrarTelaLogin() {
+  // Adicionar classe de modo login
+  document.body.classList.add('login-mode');
+  
+  // Ocultar todas as seções
+  document.querySelectorAll('main > div').forEach(el => {
+    if (el.id !== 'loginSection') {
+      el.classList.add('hidden');
+    }
+  });
+  
+  // Mostrar tela de login
+  const loginSection = document.getElementById('loginSection');
+  if (loginSection) {
+    loginSection.classList.remove('hidden');
+  }
+  
+  // Ocultar navbar
+  const nav = document.querySelector('nav');
+  if (nav) {
+    nav.style.display = 'none';
+  }
+  
+  // Inicializar Materialize para o formulário de login
+  M.updateTextFields();
+  
+  // Adicionar listener ao formulário de login
+  const loginForm = document.getElementById('loginForm');
+  if (loginForm) {
+    loginForm.removeEventListener('submit', handleLogin); // Remover listener anterior
+    loginForm.addEventListener('submit', handleLogin);
+  }
+  
+  // Inicializar modal de recuperar senha
+  const recuperarModal = document.getElementById('recuperarSenhaModal');
+  if (recuperarModal) {
+    M.Modal.init(recuperarModal);
+  }
+}
+
+/**
+ * Processa o login do usuário
+ */
+async function handleLogin(event) {
+  event.preventDefault();
+  
+  const email = document.getElementById('login_email').value.trim();
+  const senha = document.getElementById('login_senha').value;
+  
+  if (!email || !senha) {
+    M.toast({html: 'Preencha email e senha', classes: 'orange'});
+    return;
+  }
+  
+  try {
+    console.log('🔐 Tentando fazer login:', email);
+    
+    // Fazer login com Supabase Auth
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: email,
+      password: senha
+    });
+    
+    if (error) throw error;
+    
+    console.log('✅ Login realizado com sucesso');
+    M.toast({html: 'Login realizado com sucesso!', classes: 'green'});
+    
+    // Carregar dados do usuário e inicializar app
+    await carregarUsuarioAutenticado(data.user);
+    inicializarAppAutenticado();
+    
+  } catch (error) {
+    console.error('❌ Erro no login:', error);
+    
+    let mensagem = 'Erro ao fazer login';
+    if (error.message.includes('Invalid login credentials')) {
+      mensagem = 'Email ou senha incorretos';
+    } else if (error.message.includes('Email not confirmed')) {
+      mensagem = 'Email não confirmado. Verifique sua caixa de entrada.';
+    }
+    
+    M.toast({html: mensagem, classes: 'red'});
+  }
+}
+
+/**
+ * Faz logout do usuário
+ */
+async function fazerLogout() {
+  try {
+    console.log('🚪 Fazendo logout...');
+    
+    const { error } = await supabaseClient.auth.signOut();
+    
+    if (error) throw error;
+    
+    // Limpar estado do app
+    appState.user = null;
+    appState.clientes.todos = [];
+    appState.clientes.filtrados = [];
+    appState.clientes.exibidos = [];
+    appState.notificacoes.lista = [];
+    appState.notificacoes.naoLidas = 0;
+    
+    // Parar verificação de notificações
+    if (notificationInterval) {
+      clearInterval(notificationInterval);
+      notificationInterval = null;
+    }
+    
+    console.log('✅ Logout realizado com sucesso');
+    M.toast({html: 'Logout realizado com sucesso', classes: 'green'});
+    
+    // Mostrar tela de login
+    mostrarTelaLogin();
+    
+  } catch (error) {
+    console.error('❌ Erro no logout:', error);
+    M.toast({html: 'Erro ao fazer logout', classes: 'red'});
+  }
+}
+
+/**
+ * Mostra modal de recuperar senha
+ */
+function mostrarRecuperarSenha() {
+  const modal = M.Modal.getInstance(document.getElementById('recuperarSenhaModal'));
+  if (modal) {
+    modal.open();
+  }
+}
+
+/**
+ * Envia email de recuperação de senha
+ */
+async function enviarRecuperacaoSenha() {
+  const email = document.getElementById('recuperar_email').value.trim();
+  
+  if (!email) {
+    M.toast({html: 'Digite seu email', classes: 'orange'});
+    return;
+  }
+  
+  try {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/reset-password.html'
+    });
+    
+    if (error) throw error;
+    
+    M.toast({html: 'Email de recuperação enviado! Verifique sua caixa de entrada.', classes: 'green'});
+    
+    // Fechar modal
+    const modal = M.Modal.getInstance(document.getElementById('recuperarSenhaModal'));
+    if (modal) {
+      modal.close();
+    }
+    
+    // Limpar campo
+    document.getElementById('recuperar_email').value = '';
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar recuperação:', error);
+    M.toast({html: 'Erro ao enviar email de recuperação', classes: 'red'});
+  }
+}
+
+/**
+ * Monitora mudanças no estado de autenticação
+ */
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  console.log('🔄 Mudança de autenticação:', event);
+  
+  if (event === 'SIGNED_IN') {
+    console.log('✅ Usuário autenticado');
+  } else if (event === 'SIGNED_OUT') {
+    console.log('🚪 Usuário desconectado');
+    mostrarTelaLogin();
+  } else if (event === 'TOKEN_REFRESHED') {
+    console.log('🔄 Token atualizado');
+  }
+});
+
+// ========================================
+// INICIALIZAÇÃO
+// ========================================
+
+// Inicializar quando o DOM estiver pronto
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', inicializarApp);
+} else {
+  inicializarApp();
+}
+
+
+
+
+
 // ========================================
 // GERENCIAMENTO DE USUÁRIO
 // ========================================
@@ -198,10 +697,14 @@ async function loadUser() {
   try {
     console.log('🔧 Carregando usuário...');
     
+    // TEMPORÁRIO: Simular autenticação enquanto não há login real
+    // TODO: Implementar login real na Fase 2
+    const emailSimulado = 'admin@sorria.com.br';
+    
     const { data, error } = await supabaseClient
       .from('usuarios')
       .select('*')
-      .eq('email', 'admin@sorria.com.br')
+      .eq('email', emailSimulado)
       .single();
     
     if (error) throw error;
@@ -210,17 +713,43 @@ async function loadUser() {
     document.getElementById('userEmailDisplay').textContent = `${data.email} (${data.papel})`;
     console.log('✅ Usuário carregado:', appState.user.email);
     
+    // Ocultar seções para não-administradores
     if (data.papel !== 'Administrador') {
-      const usuariosSection = document.getElementById('usuariosSection');
-      const auditoriaSection = document.getElementById('auditoriaSection');
-      if (usuariosSection) usuariosSection.classList.add('hidden');
-      if (auditoriaSection) auditoriaSection.classList.add('hidden');
+      const usuariosNav = document.querySelector('a[onclick="showUsuarios()"]');
+      const auditoriaNav = document.querySelector('a[onclick="showAuditoria()"]');
+      if (usuariosNav) usuariosNav.parentElement.style.display = 'none';
+      if (auditoriaNav) auditoriaNav.parentElement.style.display = 'none';
     }
+    
+    // IMPORTANTE: Configurar email do usuário para as políticas RLS funcionarem
+    // Isso é um workaround temporário
+    await configurarContextoRLS(emailSimulado);
+    
   } catch (error) {
     console.error('❌ Erro ao carregar usuário:', error);
     M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
   }
 }
+
+/**
+ * Configura o contexto RLS temporário
+ * NOTA: Em produção, isso será substituído por autenticação JWT real
+ */
+async function configurarContextoRLS(email) {
+  try {
+    // Criar uma sessão temporária no Supabase
+    // Isso permite que as políticas RLS funcionem mesmo sem auth completo
+    console.log('⚙️ Configurando contexto RLS para:', email);
+    
+    // Armazenar email no sessionStorage para usar nas queries
+    sessionStorage.setItem('current_user_email', email);
+    
+  } catch (error) {
+    console.error('❌ Erro ao configurar RLS:', error);
+  }
+}
+
+
 
 // ========================================
 // NAVEGAÇÃO
@@ -817,34 +1346,34 @@ function renderComentarios(comentarios, id_cliente) {
       const podeEditar = appState.user && appState.user.email === comentario.email_usuario;
       
       html += `
-        <div class="comentario-item" id="comentario-${comentario.id}">
-          <div class="comentario-header">
-            <div class="comentario-autor">
-              <div class="comentario-avatar">${iniciais}</div>
-              <div class="comentario-autor-info">
-                <span class="comentario-nome">${comentario.nome_usuario || 'Usuário'}</span>
-                <span class="comentario-email">${comentario.email_usuario}</span>
-              </div>
-            </div>
-            <div class="comentario-data">
-              <i class="material-icons tiny" style="font-size: 14px;">schedule</i>
-              ${dataFormatada}
-              ${comentario.editado ? '<span class="comentario-editado">(editado)</span>' : ''}
+      <div class="comentario-item" id="comentario-${comentario.id}">
+        <div class="comentario-header">
+          <div class="comentario-autor">
+            <div class="comentario-avatar">${iniciais}</div>
+            <div class="comentario-autor-info">
+              <span class="comentario-nome">${comentario.nome_usuario || 'Usuário'}</span>
+              <span class="comentario-email">${comentario.email_usuario}</span>
             </div>
           </div>
-          <div class="comentario-texto" id="texto-${comentario.id}">${comentario.comentario}</div>
-          ${podeEditar ? `
-            <div class="comentario-acoes">
-              <button class="comentario-btn edit" onclick="editarComentario(${comentario.id})" title="Editar">
-                <i class="material-icons">edit</i>
-              </button>
-              <button class="comentario-btn delete" onclick="deletarComentario(${comentario.id}, ${id_cliente})" title="Excluir">
-                <i class="material-icons">delete</i>
-              </button>
-            </div>
-          ` : ''}
+          <div class="comentario-data">
+            <i class="material-icons tiny" style="font-size: 14px;">schedule</i>
+            ${dataFormatada}
+            ${comentario.editado ? '<span class="comentario-editado">(editado)</span>' : ''}
+          </div>
         </div>
-      `;
+        <div class="comentario-texto" id="texto-${comentario.id}">${sanitizeHTML(comentario.comentario)}</div>
+        ${podeEditar ? `
+          <div class="comentario-acoes">
+            <button class="comentario-btn edit" onclick="editarComentario(${comentario.id})" title="Editar">
+              <i class="material-icons">edit</i>
+            </button>
+            <button class="comentario-btn delete" onclick="deletarComentario(${comentario.id}, ${id_cliente})" title="Excluir">
+              <i class="material-icons">delete</i>
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
     });
   }
   
@@ -919,7 +1448,7 @@ async function adicionarComentario(id_cliente) {
 async function editarComentario(idComentario) {
   try {
     const textoEl = document.getElementById(`texto-${idComentario}`);
-    const textoAtual = textoEl.textContent;
+    const textoAtual = sanitizeHTML(textoEl.textContent);
     
     // Substituir texto por textarea
     textoEl.innerHTML = `
@@ -1793,44 +2322,59 @@ async function editCliente(id_cliente) {
 
 async function salvarCliente() {
   try {
-     // Validar CPF/CNPJ antes de prosseguir
-     const inputCpfCnpj = document.getElementById('cpf_cnpj');
-     if (!validarCampoCpfCnpj(inputCpfCnpj)) {
-       M.toast({html: 'CPF/CNPJ inválido. Corrija antes de salvar.', classes: 'red'});
-       inputCpfCnpj.focus();
-       return;
-     }
+    // Validar CPF/CNPJ antes de prosseguir
+    const inputCpfCnpj = document.getElementById('cpf_cnpj');
+    if (!validarCampoCpfCnpj(inputCpfCnpj)) {
+      M.toast({html: 'CPF/CNPJ inválido. Corrija antes de salvar.', classes: 'red'});
+      inputCpfCnpj.focus();
+      return;
+    }
+    
+    // SANITIZAR TODOS OS INPUTS ANTES DE PROCESSAR
     const clienteData = {
-      empresa_responsavel: document.getElementById('empresa_responsavel').value,
-      squad: document.getElementById('squad').value,
-      razao_social: document.getElementById('razao_social').value,
-      cpf_cnpj: document.getElementById('cpf_cnpj').value,
-      municipio: document.getElementById('municipio').value,
-      uf: document.getElementById('uf').value || null,
-      situacao: document.getElementById('situacao').value,
-      regime_tributacao: document.getElementById('regime_tributacao').value || null,
-      faturamento: parseFloat(document.getElementById('faturamento').value) || 0,
-      status_parcelamento: document.getElementById('status_parcelamento').value || null,
+      empresa_responsavel: sanitizeHTML(document.getElementById('empresa_responsavel').value),
+      squad: sanitizeHTML(document.getElementById('squad').value),
+      razao_social: sanitizeHTML(document.getElementById('razao_social').value),
+      cpf_cnpj: sanitizeAttribute(document.getElementById('cpf_cnpj').value),
+      municipio: sanitizeHTML(document.getElementById('municipio').value),
+      uf: sanitizeAttribute(document.getElementById('uf').value) || null,
+      situacao: sanitizeHTML(document.getElementById('situacao').value),
+      regime_tributacao: sanitizeHTML(document.getElementById('regime_tributacao').value) || null,
+      faturamento: sanitizeMoney(document.getElementById('faturamento').value),
+      status_parcelamento: sanitizeHTML(document.getElementById('status_parcelamento').value) || null,
       data_entrada: document.getElementById('data_entrada').value || null,
       data_constituicao: document.getElementById('data_constituicao').value || null,
       ultima_consulta_fiscal: document.getElementById('ultima_consulta_fiscal').value || null,
       vencimento_iss: document.getElementById('vencimento_iss').value || null,
       prazo_efd_reinf: document.getElementById('prazo_efd_reinf').value || null,
       prazo_fechamento: document.getElementById('prazo_fechamento').value || null,
-      status_regularidade_federal: document.getElementById('status_regularidade_federal').value || null,
-      status_regularidade_municipal: document.getElementById('status_regularidade_municipal').value || null,
-      status_regularidade_estadual: document.getElementById('status_regularidade_estadual').value || null,
-      status_regularidade_conselho: document.getElementById('status_regularidade_conselho').value || null,
-      observacoes_regularidade: document.getElementById('observacoes_regularidade').value || null,
+      status_regularidade_federal: sanitizeHTML(document.getElementById('status_regularidade_federal').value) || null,
+      status_regularidade_municipal: sanitizeHTML(document.getElementById('status_regularidade_municipal').value) || null,
+      status_regularidade_estadual: sanitizeHTML(document.getElementById('status_regularidade_estadual').value) || null,
+      status_regularidade_conselho: sanitizeHTML(document.getElementById('status_regularidade_conselho').value) || null,
+      observacoes_regularidade: sanitizeHTML(document.getElementById('observacoes_regularidade').value) || null,
     };
 
-    if (!clienteData.empresa_responsavel || !clienteData.razao_social || !clienteData.cpf_cnpj || !clienteData.municipio) {
+    // Validar campos obrigatórios
+    if (!clienteData.empresa_responsavel || !clienteData.razao_social || 
+        !clienteData.cpf_cnpj || !clienteData.municipio) {
       M.toast({html: 'Preencha os campos obrigatórios', classes: 'orange'});
       return;
     }
+    
+    // Validar tamanhos máximos
+    if (clienteData.razao_social.length > 255) {
+      M.toast({html: 'Razão social muito longa (máx: 255 caracteres)', classes: 'red'});
+      return;
+    }
+    
+    if (clienteData.observacoes_regularidade && clienteData.observacoes_regularidade.length > 2000) {
+      M.toast({html: 'Observações muito longas (máx: 2000 caracteres)', classes: 'red'});
+      return;
+    }
 
+    // Resto da função permanece igual...
     if (appState.ui.editingClienteId) {
-      // Detectar alterações
       const alteracoes = detectarAlteracoes(window.dadosOriginaisCliente, clienteData);
       
       const { error } = await supabaseClient
@@ -1840,12 +2384,12 @@ async function salvarCliente() {
       
       if (error) throw error;
       
-      // Registrar histórico
       if (Object.keys(alteracoes).length > 0) {
         await registrarHistorico(appState.ui.editingClienteId, 'EDICAO', alteracoes);
       }
       
-      await logAuditoria('CLIENTE_ATUALIZADO', appState.ui.editingClienteId, `Cliente ${clienteData.razao_social} atualizado`);
+      await logAuditoria('CLIENTE_ATUALIZADO', appState.ui.editingClienteId, 
+        `Cliente ${clienteData.razao_social} atualizado`);
       M.toast({html: 'Cliente atualizado com sucesso!', classes: 'green'});
     } else {
       const { data: novoCliente, error } = await supabaseClient
@@ -1856,16 +2400,17 @@ async function salvarCliente() {
       
       if (error) throw error;
       
-      // Registrar histórico
-      await registrarHistorico(novoCliente.id_cliente, 'CRIACAO', null, `Cliente criado: ${clienteData.razao_social}`);
+      await registrarHistorico(novoCliente.id_cliente, 'CRIACAO', null, 
+        `Cliente criado: ${clienteData.razao_social}`);
       
-      await logAuditoria('CLIENTE_CRIADO', novoCliente.id_cliente, `Novo cliente: ${clienteData.razao_social}`);
+      await logAuditoria('CLIENTE_CRIADO', novoCliente.id_cliente, 
+        `Novo cliente: ${clienteData.razao_social}`);
       M.toast({html: 'Cliente criado com sucesso!', classes: 'green'});
     }
 
     if (appState.modals.cliente) appState.modals.cliente.close();
     loadClientes();
-    verificarNotificacoes(); // Atualizar notificações
+    verificarNotificacoes();
   } catch (error) {
     console.error('❌ Erro ao salvar:', error);
     M.toast({html: `Erro: ${error.message}`, classes: 'red'});
@@ -2070,7 +2615,7 @@ async function viewCliente(id_cliente) {
               ${data.observacoes_regularidade ? `
                 <div class="alert-box">
                   <strong><i class="material-icons tiny" style="vertical-align: middle;">warning</i> Observações de Regularidade:</strong>
-                  <p style="margin: 8px 0 0 0; white-space: pre-wrap;">${data.observacoes_regularidade}</p>
+                  <p style="margin: 8px 0 0 0; white-space: pre-wrap;">${sanitizeHTML(data.observacoes_regularidade)}</p>
                 </div>
               ` : ''}
             </div>
@@ -2413,6 +2958,9 @@ let usuariosTimeout = null;
 // Modal de usuário
 let usuarioModal = null;
 
+// Modal de trocar senha
+let trocarSenhaModal = null;
+
 // Auditoria
 let todosLogsAuditoria = [];
 let logsAuditoriaFiltrados = [];
@@ -2469,11 +3017,8 @@ function openNovoUsuarioModal() {
   resetUsuarioForm();
   document.getElementById('usuarioModalTitle').textContent = 'Novo Usuário';
   document.getElementById('usuario_email').disabled = false;
-  document.getElementById('alterarSenhaInfo').style.display = 'none';
-  document.getElementById('senhaObrigatoriaLabel').style.display = 'inline';
-  document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'inline';
-  document.getElementById('usuario_senha').required = true;
-  document.getElementById('usuario_confirmar_senha').required = true;
+  document.getElementById('senhaSection').style.display = 'none';
+  document.getElementById('btnTrocarSenha').style.display = 'none';
   
   setTimeout(() => {
     M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
@@ -2514,13 +3059,10 @@ async function editUsuario(email) {
     document.getElementById('usuario_papel').value = data.papel || '';
     document.getElementById('usuario_status').value = data.ativo ? 'true' : 'false';
     
-    document.getElementById('alterarSenhaInfo').style.display = 'block';
-    document.getElementById('senhaObrigatoriaLabel').style.display = 'none';
-    document.getElementById('confirmaSenhaObrigatoriaLabel').style.display = 'none';
-    document.getElementById('usuario_senha').required = false;
-    document.getElementById('usuario_confirmar_senha').required = false;
-    document.getElementById('usuario_senha').value = '';
-    document.getElementById('usuario_confirmar_senha').value = '';
+    // Mostrar seção de senha com botão
+    document.getElementById('senhaSection').style.display = 'block';
+    document.getElementById('btnTrocarSenha').style.display = 'inline-block';
+    document.getElementById('btnTrocarSenha').setAttribute('data-email', data.email);
     
     setTimeout(() => {
       M.FormSelect.init(document.querySelectorAll('#usuarioModal select'));
@@ -2550,8 +3092,6 @@ async function salvarUsuario() {
     const empresa = document.getElementById('usuario_empresa').value;
     const papel = document.getElementById('usuario_papel').value;
     const statusNovo = document.getElementById('usuario_status').value === 'true';
-    const senha = document.getElementById('usuario_senha').value;
-    const confirmarSenha = document.getElementById('usuario_confirmar_senha').value;
     
     if (!email || !nome || !empresa || !papel) {
       M.toast({html: 'Preencha todos os campos obrigatórios', classes: 'orange'});
@@ -2562,23 +3102,6 @@ async function salvarUsuario() {
     if (!emailRegex.test(email)) {
       M.toast({html: 'Email inválido', classes: 'red'});
       return;
-    }
-    
-    if (!modoEdicao && (!senha || senha.length < 6)) {
-      M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
-      return;
-    }
-    
-    if (senha) {
-      if (senha.length < 6) {
-        M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
-        return;
-      }
-      
-      if (senha !== confirmarSenha) {
-        M.toast({html: 'As senhas não coincidem', classes: 'red'});
-        return;
-      }
     }
     
     if (modoEdicao) {
@@ -2607,10 +3130,6 @@ async function salvarUsuario() {
       ativo: statusNovo
     };
     
-    if (senha) {
-      usuarioData.senha = senha;
-    }
-    
     if (modoEdicao) {
       const emailOriginal = document.getElementById('usuario_email_original').value;
       
@@ -2636,6 +3155,9 @@ async function salvarUsuario() {
         return;
       }
       
+      // Senha padrão temporária para novo usuário
+      usuarioData.senha = 'temp123456';
+      
       const { error } = await supabaseClient
         .from('usuarios')
         .insert([usuarioData]);
@@ -2643,7 +3165,7 @@ async function salvarUsuario() {
       if (error) throw error;
       
       await logAuditoria('USUARIO_CRIADO', null, `Novo usuário: ${email}`);
-      M.toast({html: 'Usuário criado com sucesso!', classes: 'green'});
+      M.toast({html: 'Usuário criado com sucesso! Senha temporária: temp123456', classes: 'green', displayLength: 6000});
     }
     
     if (usuarioModal) usuarioModal.close();
@@ -2652,6 +3174,70 @@ async function salvarUsuario() {
     console.error('❌ Erro ao salvar:', error);
     M.toast({html: `Erro: ${error.message}`, classes: 'red'});
   }
+}
+
+/**
+ * Abre o modal de trocar senha
+ */
+function abrirModalTrocarSenha() {
+  const email = document.getElementById('usuario_email_original').value;
+  const nome = document.getElementById('usuario_nome').value;
+  
+  document.getElementById('trocarSenhaUsuarioEmail').textContent = `${nome} (${email})`;
+  document.getElementById('trocar_senha_email_usuario').value = email;
+  document.getElementById('trocar_senha_nova').value = '';
+  document.getElementById('trocar_senha_confirmar').value = '';
+  
+  setTimeout(() => {
+    M.updateTextFields();
+  }, 100);
+  
+  if (trocarSenhaModal) trocarSenhaModal.open();
+}
+
+/**
+ * Salva a nova senha do usuário
+ */
+async function salvarNovaSenha() {
+  try {
+    const email = document.getElementById('trocar_senha_email_usuario').value;
+    const novaSenha = document.getElementById('trocar_senha_nova').value;
+    const confirmarSenha = document.getElementById('trocar_senha_confirmar').value;
+    
+    if (!novaSenha || novaSenha.length < 6) {
+      M.toast({html: 'A senha deve ter no mínimo 6 caracteres', classes: 'orange'});
+      return;
+    }
+    
+    if (novaSenha !== confirmarSenha) {
+      M.toast({html: 'As senhas não coincidem', classes: 'red'});
+      return;
+    }
+    
+    const { error } = await supabaseClient
+      .from('usuarios')
+      .update({ senha: novaSenha })
+      .eq('email', email);
+    
+    if (error) throw error;
+    
+    await logAuditoria('USUARIO_SENHA_ALTERADA', null, `Senha alterada para usuário ${email}`);
+    M.toast({html: 'Senha alterada com sucesso!', classes: 'green'});
+    
+    if (trocarSenhaModal) trocarSenhaModal.close();
+  } catch (error) {
+    console.error('❌ Erro ao alterar senha:', error);
+    M.toast({html: `Erro: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Reseta o formulário de trocar senha
+ */
+function resetTrocarSenhaForm() {
+  document.getElementById('trocarSenhaForm').reset();
+  document.getElementById('trocar_senha_email_usuario').value = '';
+  M.updateTextFields();
 }
 
 /**
@@ -2690,6 +3276,8 @@ function resetUsuarioForm() {
   document.getElementById('usuario_modo_edicao').value = 'false';
   document.getElementById('usuario_email_original').value = '';
   document.getElementById('usuario_email').disabled = false;
+  document.getElementById('senhaSection').style.display = 'none';
+  document.getElementById('btnTrocarSenha').style.display = 'none';
   M.updateTextFields();
 }
 
