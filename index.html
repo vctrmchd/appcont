@@ -242,19 +242,51 @@
       position: relative;
       display: inline-block;
     }
+
     .notification-count {
       position: absolute;
-      top: -8px;
-      right: -8px;
+      top: 10px;
+      right: 0px;
       background: #f44336;
       color: white;
       border-radius: 50%;
-      padding: 2px 6px;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: bold;
-      min-width: 18px;
-      text-align: center;
+      min-width: 20px;
+      height: 20px;
+      width: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    } 
+    .notification-badge .notification-count {
+      position: absolute;
+      top: 10px;
+      right: 0px;
+      background: #f44336;
+      color: white;
+      border-radius: 50%;
+      font-size: 12px; /* Reduzir um pouco pode ajudar no alinhamento */
+      font-weight: bold;
+      width: 20px;   /* Largura fixa */
+      height: 20px;  /* Altura fixa */
+      
+      /* Centralização com Flexbox (garantido pela especificidade) */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      /* Remove espaçamentos que podem atrapalhar */
+      padding: 0;
+      line-height: 1; 
     }
+    .notification-header a {
+      color: white !important; 
+      font-size: 12px;
+      text-decoration: underline;
+    }
+
     .notification-item {
       padding: 15px 20px;
       border-bottom: 1px solid #e0e0e0;
@@ -302,12 +334,33 @@
     }
     .notification-header {
       padding: 15px 20px;
-      background: #1976d2;
-      color: white;
+      background: #1976D2;
       font-weight: 500;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      cursor: default;
+    }
+    
+    #notificationsDropdown .notification-header span {
+  color: white;
+    }
+
+    #notificationsDropdown .notification-header a {
+      color: white;
+      text-decoration: underline;
+    }
+
+    #notificationsDropdown .notification-header a:hover {
+      color: #eeeeee;
+    }
+
+    .notification-header span {
+      color: white; 
+    }
+
+    .notification-header:hover {
+      background: #1976D2 !important;
     }
     .notification-empty {
       padding: 40px 20px;
@@ -853,28 +906,44 @@
   <!-- Navbar -->
   <nav class="blue darken-1">
     <div class="nav-wrapper">
-      <a href="#!" class="brand-logo">
-        <i class="material-icons left">business</i>
-        Gestão Contábil
-      </a>
-      <ul id="nav-mobile" class="right">
-        <!-- Dropdown de Notificações -->
-        <li>
-          <a class="dropdown-trigger notification-badge" href="#!" data-target="notificationsDropdown">
-            <i class="material-icons">notifications</i>
-            <span id="notificationCount" class="notification-count" style="display: none;">0</span>
+      <div class="row" style="margin-bottom: 0;">
+        <!-- Logo à esquerda -->
+        <div class="col s3">
+          <a href="#!" class="brand-logo">
+            <i class="material-icons left">business</i>
+            Gestão Contábil
           </a>
-        </li>
+        </div>
         
-        <!-- Dropdown de Usuário -->
-        <li>
-          <a class="dropdown-trigger" href="#!" data-target="userDropdown">
-            <i class="material-icons left">account_circle</i>
-            <span id="userName">Usuário</span>
-            <i class="material-icons right">arrow_drop_down</i>
-          </a>
-        </li>
-      </ul>
+        <!-- Menu centralizado -->
+        <div class="col s6 center-align">
+          <ul class="hide-on-med-and-down" style="display: inline-flex; list-style: none; margin: 0;">
+            <li><a href="#!" onclick="showDashboard()"><i class="material-icons left">dashboard</i>Dashboard</a></li>
+            <li><a href="#!" onclick="showClientes()"><i class="material-icons left">people</i>Clientes</a></li>
+            <li><a href="#!" onclick="showUsuarios()"><i class="material-icons left">person</i>Usuários</a></li>
+            <li><a href="#!" onclick="showAuditoria()"><i class="material-icons left">history</i>Auditoria</a></li>
+          </ul>
+        </div>
+        
+        <!-- Ícones à direita -->
+        <div class="col s3">
+          <ul class="right">
+            <li>
+              <a class="dropdown-trigger notification-badge" href="#!" data-target="notificationsDropdown">
+                <i class="material-icons">notifications</i>
+                <span id="notificationCount" class="notification-count" style="display: none;">0</span>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-trigger" href="#!" data-target="userDropdown">
+                <i class="material-icons left">account_circle</i>
+                <span id="userName">Usuário</span>
+                <i class="material-icons right">arrow_drop_down</i>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
     </div>
   </nav>
   
@@ -897,59 +966,73 @@
 
   <main>
 
-      <!-- ========================================
-      SEÇÃO DE LOGIN
-      Adicione este código no index.html, dentro da tag <main>
-      ======================================== -->
-  <div id="loginSection" class="container" style="margin-top: 100px;">
+  <!-- ========================================
+  SEÇÃO DE LOGIN
+  ======================================== -->
+  <div id="loginSection" style="margin-top: 60px; padding: 0 20px; max-width: 100%;">
     <div class="row">
-      <div class="col s12 m6 offset-m3">
-        <div class="card">
-          <div class="card-content">
-            <div class="center-align" style="margin-bottom: 30px;">
-              <i class="material-icons large blue-text">account_circle</i>
-              <h4 class="card-title">Sistema de Gestão</h4>
-              <p class="grey-text">Sorria / Medic / Felício</p>
+      <div class="col s12 m12 l12 xl10 offset-xl1">
+        <div class="card" style="border-radius: 16px; overflow: hidden; max-width: 1200px; margin: 0 auto;">
+          <div class="card-content" style="padding: 60px 80px;">
+            <div class="row" style="margin-bottom: 0;">
+              <!-- Coluna da Esquerda - Branding -->
+              <div class="col s12 m5 center-align" style="padding-right: 40px; border-right: 1px solid #e0e0e0;">
+                <div style="background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); width: 120px; height: 120px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 25px; box-shadow: 0 6px 16px rgba(25, 118, 210, 0.4);">
+                  <i class="material-icons" style="font-size: 64px; color: white;">business</i>
+                </div>
+                <h4 class="card-title" style="margin: 20px 0 15px 0; font-weight: 500; font-size: 26px; line-height: 1.3;">Sistema de Gestão Contábil</h4>
+                <p class="grey-text" style="font-size: 16px; margin-bottom: 30px;">Sorria / Medic / Felício</p>
+              </div>
+              
+              <!-- Coluna da Direita - Formulário -->
+              <div class="col s12 m7" style="padding-left: 40px;">
+                <h5 style="margin: 0 0 30px 0; font-weight: 500; color: #424242;">Acessar Sistema</h5>
+                
+                <form id="loginForm">
+                  <div class="input-field" style="margin-bottom: 25px;">
+                    <i class="material-icons prefix blue-text">email</i>
+                    <input id="login_email" type="email" class="validate" required autocomplete="username" style="font-size: 16px;">
+                    <label for="login_email" style="font-size: 15px;">Email</label>
+                    <span class="helper-text" data-error="Email inválido"></span>
+                  </div>
+                  
+                  <div class="input-field" style="margin-bottom: 30px;">
+                    <i class="material-icons prefix blue-text">lock</i>
+                    <input id="login_senha" type="password" class="validate" required autocomplete="current-password" style="font-size: 16px;">
+                    <label for="login_senha" style="font-size: 15px;">Senha</label>
+                  </div>
+                  
+                  <div style="margin-top: 35px;">
+                    <button class="btn waves-effect waves-light blue" type="submit" style="width: 100%; height: 52px; font-size: 16px; border-radius: 8px; box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);">
+                      <span style="line-height: 52px;">Entrar no Sistema</span>
+                      <i class="material-icons right" style="line-height: 52px;">arrow_forward</i>
+                    </button>
+                  </div>
+                  
+                  <div class="center-align" style="margin-top: 25px;">
+                    <a href="#!" onclick="mostrarRecuperarSenha()" class="blue-text" style="font-size: 15px;">
+                      <i class="material-icons tiny" style="vertical-align: middle;">help_outline</i>
+                      Esqueci minha senha
+                    </a>
+                  </div>
+                </form>
+              </div>
             </div>
-            
-            <form id="loginForm">
-              <div class="input-field">
-                <i class="material-icons prefix">email</i>
-                <input id="login_email" type="email" class="validate" required autocomplete="username">
-                <label for="login_email">Email</label>
-                <span class="helper-text" data-error="Email inválido"></span>
-              </div>
-              
-              <div class="input-field">
-                <i class="material-icons prefix">lock</i>
-                <input id="login_senha" type="password" class="validate" required autocomplete="current-password">
-                <label for="login_senha">Senha</label>
-              </div>
-              
-              <div class="center-align" style="margin-top: 30px;">
-                <button class="btn waves-effect waves-light blue" type="submit" style="width: 100%;">
-                  Entrar
-                  <i class="material-icons right">send</i>
-                </button>
-              </div>
-              
-              <div class="center-align" style="margin-top: 20px;">
-                <a href="#!" onclick="mostrarRecuperarSenha()" class="blue-text">Esqueci minha senha</a>
-              </div>
-            </form>
           </div>
         </div>
         
         <!-- Card de informações de teste (remover em produção) -->
-        <div class="card blue lighten-5" style="margin-top: 20px;">
-          <div class="card-content">
-            <span class="card-title blue-text">
-              <i class="material-icons left">info</i>
+        <div class="card" style="margin-top: 30px; border-radius: 12px; border-left: 4px solid #2196f3; max-width: 1200px; margin-left: auto; margin-right: auto;">
+          <div class="card-content" style="padding: 30px 40px;">
+            <span class="card-title blue-text" style="font-size: 18px; display: flex; align-items: center; margin-bottom: 20px;">
+              <i class="material-icons" style="margin-right: 10px;">info</i>
               Credenciais de Teste
             </span>
-            <p><strong>Admin Sorria:</strong> admin@sorria.com.br / Admin@2025</p>
-            <p><strong>Admin Medic:</strong> admin@medic.com.br / Admin@2025</p>
-            <p><strong>Gerente:</strong> gerente@sorria.com.br / Gerente@2025</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; font-size: 15px;">
+              <p style="margin: 5px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;"><strong>Admin Sorria:</strong><br>admin@sorria.com.br / Admin@2025</p>
+              <p style="margin: 5px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;"><strong>Gerente:</strong><br>gerente@sorria.com.br / Gerente@2025</p>
+              <p style="margin: 5px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;"><strong>Atendente:</strong><br>atendente@sorria.com.br / Atendente@2025</p>
+            </div>
           </div>
         </div>
       </div>

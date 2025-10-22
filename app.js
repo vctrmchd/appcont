@@ -370,8 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
     constrainWidth: false
   });
   
-  loadUser();
-  showDashboard();
+
   
   // Iniciar verificação de notificações a cada 5 minutos
   verificarNotificacoes();
@@ -438,16 +437,17 @@ async function carregarUsuarioAutenticado(authUser) {
     appState.user = data;
     console.log('✅ Usuário carregado:', data);
     
-    // Atualizar UI com nome do usuário
+    // Atualizar UI com nome do usuário 
     const userNameEl = document.getElementById('userName');
     if (userNameEl) {
       userNameEl.textContent = data.nome || data.email;
+    } else {
+      console.warn('⚠️ Elemento #userName não encontrado no HTML');
     }
     
   } catch (error) {
     console.error('❌ Erro ao carregar usuário:', error);
     M.toast({html: 'Erro ao carregar dados do usuário', classes: 'red'});
-    throw error;
   }
 }
 
@@ -466,6 +466,19 @@ function inicializarAppAutenticado() {
   
   // Inicializar Materialize
   M.AutoInit();
+
+  // Reinicializar dropdowns especificamente
+  const dropdowns = document.querySelectorAll('.dropdown-trigger');
+  M.Dropdown.init(dropdowns, {
+    coverTrigger: false,
+    constrainWidth: false
+  });
+  
+  // Reinicializar selects
+  M.FormSelect.init(document.querySelectorAll('select'));
+  
+  // Atualizar labels de inputs
+  M.updateTextFields();
   
   // Inicializar modais
   appState.modals.cliente = M.Modal.init(document.getElementById('clienteModal'));
@@ -478,12 +491,19 @@ function inicializarAppAutenticado() {
     constrainWidth: false
   });
   
-  // Mostrar dashboard
-  showDashboard();
+  // Garantir que todas as seções estejam ocultas primeiro
+  document.querySelectorAll('#dashboardSection, #clientesSection, #usuariosSection, #auditoriaSection').forEach(section => {
+    section.classList.add('hidden');
+  });
+
+  // Aguardar renderização e então mostrar dashboard
+  setTimeout(() => {
+    showDashboard();
   
   // Iniciar verificação de notificações
   verificarNotificacoes();
   notificationInterval = setInterval(verificarNotificacoes, 5 * 60 * 1000);
+}, 200);
   
   console.log('✅ Aplicação inicializada com sucesso');
 }
@@ -559,9 +579,13 @@ async function handleLogin(event) {
     console.log('✅ Login realizado com sucesso');
     M.toast({html: 'Login realizado com sucesso!', classes: 'green'});
     
-    // Carregar dados do usuário e inicializar app
+    // Carregar dados do usuário
     await carregarUsuarioAutenticado(data.user);
-    inicializarAppAutenticado();
+
+    // Recarregar página para garantir inicialização correta
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
     
   } catch (error) {
     console.error('❌ Erro no login:', error);
@@ -676,6 +700,35 @@ supabaseClient.auth.onAuthStateChange((event, session) => {
 });
 
 // ========================================
+// FUNÇÕES DE PERFIL E CONFIGURAÇÕES
+// ========================================
+
+/**
+ * Abre modal de perfil do usuário
+ */
+function abrirMeuPerfil() {
+  if (!appState.user) {
+    M.toast({html: 'Usuário não carregado', classes: 'red'});
+    return;
+  }
+  
+  M.toast({html: 'Funcionalidade em desenvolvimento', classes: 'blue'});
+  
+  // TODO: Implementar modal de perfil
+  console.log('📝 Abrir perfil do usuário:', appState.user);
+}
+
+/**
+ * Abre modal de configurações
+ */
+function abrirConfiguracoes() {
+  M.toast({html: 'Funcionalidade em desenvolvimento', classes: 'blue'});
+  
+  // TODO: Implementar modal de configurações
+  console.log('⚙️ Abrir configurações');
+}
+
+// ========================================
 // INICIALIZAÇÃO
 // ========================================
 
@@ -693,43 +746,7 @@ if (document.readyState === 'loading') {
 // ========================================
 // GERENCIAMENTO DE USUÁRIO
 // ========================================
-async function loadUser() {
-  try {
-    console.log('🔧 Carregando usuário...');
-    
-    // TEMPORÁRIO: Simular autenticação enquanto não há login real
-    // TODO: Implementar login real na Fase 2
-    const emailSimulado = 'admin@sorria.com.br';
-    
-    const { data, error } = await supabaseClient
-      .from('usuarios')
-      .select('*')
-      .eq('email', emailSimulado)
-      .single();
-    
-    if (error) throw error;
-    
-    appState.user = data;
-    document.getElementById('userEmailDisplay').textContent = `${data.email} (${data.papel})`;
-    console.log('✅ Usuário carregado:', appState.user.email);
-    
-    // Ocultar seções para não-administradores
-    if (data.papel !== 'Administrador') {
-      const usuariosNav = document.querySelector('a[onclick="showUsuarios()"]');
-      const auditoriaNav = document.querySelector('a[onclick="showAuditoria()"]');
-      if (usuariosNav) usuariosNav.parentElement.style.display = 'none';
-      if (auditoriaNav) auditoriaNav.parentElement.style.display = 'none';
-    }
-    
-    // IMPORTANTE: Configurar email do usuário para as políticas RLS funcionarem
-    // Isso é um workaround temporário
-    await configurarContextoRLS(emailSimulado);
-    
-  } catch (error) {
-    console.error('❌ Erro ao carregar usuário:', error);
-    M.toast({html: 'Erro ao carregar usuário', classes: 'red'});
-  }
-}
+
 
 /**
  * Configura o contexto RLS temporário
@@ -790,7 +807,12 @@ function showAuditoria() {
 
 function hideAllSections() {
   ['dashboardSection', 'clientesSection', 'usuariosSection', 'auditoriaSection']
-    .forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    .forEach(id => {
+      const section = document.getElementById(id);
+      if (section) {
+        section.classList.add('hidden');
+      }
+    });
 }
 
 // ========================================
