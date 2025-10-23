@@ -159,8 +159,7 @@ function sanitizeAttribute(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+    .replace(/'/g, '&#x27;');
 }
 
 /**
@@ -737,33 +736,6 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', inicializarApp);
 } else {
   inicializarApp();
-}
-
-
-
-
-
-// ========================================
-// GERENCIAMENTO DE USUÁRIO
-// ========================================
-
-
-/**
- * Configura o contexto RLS temporário
- * NOTA: Em produção, isso será substituído por autenticação JWT real
- */
-async function configurarContextoRLS(email) {
-  try {
-    // Criar uma sessão temporária no Supabase
-    // Isso permite que as políticas RLS funcionem mesmo sem auth completo
-    console.log('⚙️ Configurando contexto RLS para:', email);
-    
-    // Armazenar email no sessionStorage para usar nas queries
-    sessionStorage.setItem('current_user_email', email);
-    
-  } catch (error) {
-    console.error('❌ Erro ao configurar RLS:', error);
-  }
 }
 
 
@@ -2352,6 +2324,11 @@ async function salvarCliente() {
       return;
     }
     
+    const cpfCnpj = document.getElementById('cpf_cnpj').value.trim();
+
+    // Limpar e validar
+    const cpfCnpjLimpo = cpfCnpj.replace(/\s+/g, ''); // Remove espaços
+
     // SANITIZAR TODOS OS INPUTS ANTES DE PROCESSAR
     const clienteData = {
       empresa_responsavel: sanitizeHTML(document.getElementById('empresa_responsavel').value),
