@@ -3829,7 +3829,7 @@ async function salvarAcesso() {
       if (!error) {
         M.toast({html: 'Acesso atualizado com sucesso!', classes: 'green'});
         
-        // CORRIGIDO: usar registrarHistorico
+        // Usar registrarHistorico
         await registrarHistorico(
           idCliente,
           'EDICAO',
@@ -3850,7 +3850,7 @@ async function salvarAcesso() {
       if (!error) {
         M.toast({html: 'Acesso criado com sucesso!', classes: 'green'});
         
-        // CORRIGIDO: usar registrarHistorico
+        // Usar registrarHistorico
         await registrarHistorico(
           idCliente,
           'CRIACAO',
