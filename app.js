@@ -25,7 +25,8 @@ const appState = {
   modals: {
     cliente: null,
     viewCliente: null,
-    historico: null
+    historico: null,
+    acessos: null
   },
   ui: {
     editingClienteId: null
@@ -320,7 +321,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const parcelamentoModalEl = document.getElementById('parcelamentoModal');
   const usuarioModalEl = document.getElementById('usuarioModal');
   const trocarSenhaModalEl = document.getElementById('trocarSenhaModal');
-
+  const acessosModalEl = document.getElementById('acessosModal');
+  
+  if (acessosModalEl) {
+    appState.modals.acessos = M.Modal.init(acessosModalEl, {
+      dismissible: true,
+      onCloseEnd: resetAcessosForm
+    });
+  }
 
   if (trocarSenhaModalEl) {
     trocarSenhaModal = M.Modal.init(trocarSenhaModalEl, {
@@ -360,6 +368,8 @@ document.addEventListener('DOMContentLoaded', function() {
     appState.modals.historico = M.Modal.init(historicoModalEl);
   }
   
+
+
   M.FormSelect.init(document.querySelectorAll('select'));
   
   // Inicializar dropdown de exportação
@@ -483,7 +493,8 @@ function inicializarAppAutenticado() {
   appState.modals.cliente = M.Modal.init(document.getElementById('clienteModal'));
   appState.modals.viewCliente = M.Modal.init(document.getElementById('viewClienteModal'));
   appState.modals.historico = M.Modal.init(document.getElementById('historicoModal'));
-  
+
+
   // Inicializar dropdown de notificações
   M.Dropdown.init(document.querySelectorAll('.dropdown-trigger'), {
     coverTrigger: false,
@@ -2170,7 +2181,10 @@ function renderClientes() {
       <td>${cliente.regime_tributacao || '-'}</td>
       <td>
         <a href="#!" class="btn-small blue tooltipped" data-position="top" data-tooltip="Visualizar" onclick="viewCliente(${cliente.id_cliente})">
-          <i class="material-icons">visibility</i>
+          <i class="material-icons">visibility</i/>
+        </a>
+        <a href="#!" class="btn-small orange tooltipped" data-position="top" data-tooltip="Acessos" onclick="mostrarAcessosCliente(${cliente.id_cliente})">
+          <i class="material-icons">vpn_key</i>
         </a>
       </td>
     `;
@@ -3465,5 +3479,452 @@ function renderAuditoria() {
     infoAuditoria.textContent = `Exibindo ${logsOrdenados.length} de ${todosLogsAuditoria.length} registros`;
   }
 }
+
+// ========================================
+// MÓDULO DE GESTÃO DE ACESSOS/SENHAS
+// ========================================
+
+// Modal de acessos
+let acessosModal = null;
+
+/**
+ * Inicializa o modal de acessos (chamar no inicializarApp)
+ */
+function inicializarModalAcessos() {
+  const modalElement = document.getElementById('acessosModal');
+  if (modalElement) {
+    acessosModal = M.Modal.init(modalElement, {
+      dismissible: true,
+      onCloseEnd: resetAcessosForm
+    });
+  }
+}
+
+/**
+ * Mostra a seção de acessos do cliente
+ */
+async function mostrarAcessosCliente(clienteId) {
+  console.log('🔑 Mostrando acessos do cliente:', clienteId);
+  
+  try {
+    // Buscar dados do cliente
+    const { data: cliente, error: clienteError } = await supabaseClient
+      .from('clientes')
+      .select('id_cliente, razao_social')
+      .eq('id_cliente', clienteId)
+      .single();
+    
+    if (clienteError) throw clienteError;
+    
+    // Atualizar título
+    document.getElementById('acessosClienteNome').textContent = cliente.razao_social;
+    document.getElementById('acessos_id_cliente').value = clienteId;
+    
+    // Carregar lista de acessos
+    await carregarAcessosCliente(clienteId);
+    
+    // Abrir modal
+    if (acessosModal) {
+      acessosModal.open();
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao mostrar acessos:', error);
+    M.toast({html: `Erro ao carregar acessos: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Carrega a lista de acessos do cliente
+ */
+async function carregarAcessosCliente(clienteId) {
+  try {
+    const { data: acessos, error } = await supabaseClient
+      .from('acessos')
+      .select('*')
+      .eq('id_cliente', clienteId)
+      .order('servico', { ascending: true });
+    
+    if (error) throw error;
+    
+    renderizarListaAcessos(acessos || []);
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar acessos:', error);
+    M.toast({html: `Erro ao carregar acessos: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Renderiza a lista de acessos na interface
+ */
+function renderizarListaAcessos(acessos) {
+  const container = document.getElementById('listaAcessos');
+  
+  if (!acessos || acessos.length === 0) {
+    container.innerHTML = `
+      <div class="center-align grey-text" style="padding: 40px 20px;">
+        <i class="material-icons" style="font-size: 48px;">lock_open</i>
+        <p>Nenhum acesso cadastrado para este cliente.</p>
+        <p>Clique em "Novo Acesso" para adicionar.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  let html = '<ul class="collection">';
+  
+  acessos.forEach(acesso => {
+    const categoria = acesso.categoria || 'Geral';
+    const link = acesso.link_acesso || '';
+    const login = acesso.login || '';
+    const obs = acesso.observacoes || '';
+    
+    html += `
+      <li class="collection-item">
+        <div class="row" style="margin-bottom: 0;">
+          <div class="col s12 m8">
+            <h6 class="truncate" style="margin: 0 0 5px 0;">
+              <i class="material-icons tiny" style="vertical-align: middle;">vpn_key</i>
+              <strong>${sanitizeHTML(acesso.servico)}</strong>
+            </h6>
+            <p class="grey-text text-darken-1" style="margin: 0 0 5px 0; font-size: 0.9em;">
+              <span class="chip" style="height: 20px; line-height: 20px; font-size: 0.8em;">${sanitizeHTML(categoria)}</span>
+            </p>
+            ${login ? `
+              <p style="margin: 0 0 5px 0; font-size: 0.9em;">
+                <strong>Login:</strong> ${sanitizeHTML(login)}
+                <a href="#!" onclick="copiarTexto('${escapeJS(login)}', 'Login')" class="btn-flat btn-small waves-effect" style="padding: 0 8px; min-width: 0;">
+                  <i class="material-icons tiny">content_copy</i>
+                </a>
+              </p>
+            ` : ''}
+            ${link ? `
+              <p style="margin: 0 0 5px 0; font-size: 0.9em;">
+                <a href="${sanitizeAttribute(link)}" target="_blank" rel="noopener noreferrer" class="blue-text">
+                  <i class="material-icons tiny" style="vertical-align: middle;">open_in_new</i> Acessar
+                </a>
+              </p>
+            ` : ''}
+            ${obs ? `
+              <p class="grey-text" style="margin: 5px 0 0 0; font-size: 0.85em;">
+                <em>${sanitizeHTML(obs)}</em>
+              </p>
+            ` : ''}
+          </div>
+          <div class="col s12 m4 right-align">
+            <button onclick="copiarSenha(${acesso.id_acesso})" class="btn blue waves-effect waves-light" style="margin: 2px;">
+              <i class="material-icons left">content_copy</i>Copiar Senha
+            </button>
+            <button onclick="editarAcesso(${acesso.id_acesso})" class="btn orange waves-effect waves-light" style="margin: 2px;">
+              <i class="material-icons">edit</i>
+            </button>
+            <button onclick="excluirAcesso(${acesso.id_acesso})" class="btn red waves-effect waves-light" style="margin: 2px;">
+              <i class="material-icons">delete</i>
+            </button>
+          </div>
+        </div>
+      </li>
+    `;
+  });
+  
+  html += '</ul>';
+  container.innerHTML = html;
+}
+
+/**
+ * Copia a senha descriptografada para a área de transferência
+ */
+async function copiarSenha(idAcesso) {
+  try {
+    // Buscar a senha criptografada
+    const { data: acesso, error } = await supabaseClient
+      .from('acessos')
+      .select('senha_criptografada, servico')
+      .eq('id_acesso', idAcesso)
+      .single();
+    
+    if (error) throw error;
+    
+    // Descriptografar a senha (usando atob para Base64)
+    const senhaDescriptografada = atob(acesso.senha_criptografada);
+    
+    // Copiar para a área de transferência
+    await navigator.clipboard.writeText(senhaDescriptografada);
+    
+    M.toast({
+      html: `<i class="material-icons left">check_circle</i>Senha de "${acesso.servico}" copiada!`,
+      classes: 'green'
+    });
+    
+    // Registrar na auditoria
+    await registrarAuditoria(
+      document.getElementById('acessos_id_cliente').value,
+      'ACESSO_SENHA',
+      'senha_copiada',
+      null,
+      null,
+      `Senha copiada: ${acesso.servico}`
+    );
+    
+  } catch (error) {
+    console.error('❌ Erro ao copiar senha:', error);
+    M.toast({html: 'Erro ao copiar senha', classes: 'red'});
+  }
+}
+
+/**
+ * Copia um texto genérico para a área de transferência
+ */
+async function copiarTexto(texto, tipo) {
+  try {
+    await navigator.clipboard.writeText(texto);
+    M.toast({
+      html: `<i class="material-icons left">check_circle</i>${tipo} copiado!`,
+      classes: 'green'
+    });
+  } catch (error) {
+    console.error('❌ Erro ao copiar:', error);
+    M.toast({html: `Erro ao copiar ${tipo}`, classes: 'red'});
+  }
+}
+
+/**
+ * Abre o formulário para criar novo acesso
+ */
+function novoAcesso() {
+  document.getElementById('acessoFormTitle').textContent = 'Novo Acesso';
+  document.getElementById('acesso_id_acesso').value = '';
+  document.getElementById('acessoForm').reset();
+  
+  // Mostrar o formulário
+  document.getElementById('acessoFormContainer').style.display = 'block';
+  document.getElementById('listaAcessosContainer').style.display = 'none';
+  
+  M.updateTextFields();
+  M.textareaAutoResize(document.getElementById('acesso_observacoes'));
+}
+
+/**
+ * Edita um acesso existente
+ */
+async function editarAcesso(idAcesso) {
+  try {
+    const { data: acesso, error } = await supabaseClient
+      .from('acessos')
+      .select('*')
+      .eq('id_acesso', idAcesso)
+      .single();
+    
+    if (error) throw error;
+    
+    // Preencher formulário
+    document.getElementById('acessoFormTitle').textContent = 'Editar Acesso';
+    document.getElementById('acesso_id_acesso').value = acesso.id_acesso;
+    document.getElementById('acesso_servico').value = acesso.servico;
+    document.getElementById('acesso_categoria').value = acesso.categoria || '';
+    document.getElementById('acesso_link').value = acesso.link_acesso || '';
+    document.getElementById('acesso_login').value = acesso.login || '';
+    document.getElementById('acesso_observacoes').value = acesso.observacoes || '';
+    
+    // Descriptografar senha para edição
+    try {
+      const senhaDescriptografada = atob(acesso.senha_criptografada);
+      document.getElementById('acesso_senha').value = senhaDescriptografada;
+    } catch (e) {
+      console.warn('⚠️ Senha não pôde ser descriptografada');
+    }
+    
+    // Mostrar o formulário
+    document.getElementById('acessoFormContainer').style.display = 'block';
+    document.getElementById('listaAcessosContainer').style.display = 'none';
+    
+    M.updateTextFields();
+    M.textareaAutoResize(document.getElementById('acesso_observacoes'));
+    
+  } catch (error) {
+    console.error('❌ Erro ao carregar acesso:', error);
+    M.toast({html: `Erro ao carregar acesso: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Salva o acesso (criar ou atualizar)
+ */
+async function salvarAcesso() {
+  try {
+    const idAcesso = document.getElementById('acesso_id_acesso').value;
+    const idCliente = document.getElementById('acessos_id_cliente').value;
+    const servico = document.getElementById('acesso_servico').value.trim();
+    const categoria = document.getElementById('acesso_categoria').value.trim();
+    const link = document.getElementById('acesso_link').value.trim();
+    const login = document.getElementById('acesso_login').value.trim();
+    const senha = document.getElementById('acesso_senha').value;
+    const observacoes = document.getElementById('acesso_observacoes').value.trim();
+    
+    // Validações
+    if (!servico) {
+      M.toast({html: 'Preencha o nome do serviço', classes: 'orange'});
+      return;
+    }
+    
+    if (!senha) {
+      M.toast({html: 'Preencha a senha', classes: 'orange'});
+      return;
+    }
+    
+    // Criptografar senha (usando btoa para Base64)
+    const senhaCriptografada = btoa(senha);
+    
+    const acessoData = {
+      id_cliente: parseInt(idCliente),
+      servico: servico,
+      categoria: categoria || null,
+      link_acesso: link || null,
+      login: login || null,
+      senha_criptografada: senhaCriptografada,
+      observacoes: observacoes || null,
+      updated_at: new Date().toISOString()
+    };
+    
+    let error;
+    
+    if (idAcesso) {
+      // Atualizar
+      const result = await supabaseClient
+        .from('acessos')
+        .update(acessoData)
+        .eq('id_acesso', idAcesso);
+      
+      error = result.error;
+      
+      if (!error) {
+        M.toast({html: 'Acesso atualizado com sucesso!', classes: 'green'});
+        
+        await registrarAuditoria(
+          idCliente,
+          'UPDATE',
+          'acessos',
+          null,
+          null,
+          `Acesso atualizado: ${servico}`
+        );
+      }
+    } else {
+      // Criar
+      acessoData.created_at = new Date().toISOString();
+      
+      const result = await supabaseClient
+        .from('acessos')
+        .insert([acessoData]);
+      
+      error = result.error;
+      
+      if (!error) {
+        M.toast({html: 'Acesso criado com sucesso!', classes: 'green'});
+        
+        await registrarAuditoria(
+          idCliente,
+          'INSERT',
+          'acessos',
+          null,
+          null,
+          `Novo acesso cadastrado: ${servico}`
+        );
+      }
+    }
+    
+    if (error) throw error;
+    
+    // Voltar para a lista
+    cancelarAcesso();
+    await carregarAcessosCliente(idCliente);
+    
+  } catch (error) {
+    console.error('❌ Erro ao salvar acesso:', error);
+    M.toast({html: `Erro ao salvar: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Exclui um acesso
+ */
+async function excluirAcesso(idAcesso) {
+  if (!confirm('Tem certeza que deseja excluir este acesso?')) {
+    return;
+  }
+  
+  try {
+    // Buscar dados do acesso antes de excluir
+    const { data: acesso } = await supabaseClient
+      .from('acessos')
+      .select('servico, id_cliente')
+      .eq('id_acesso', idAcesso)
+      .single();
+    
+    const { error } = await supabaseClient
+      .from('acessos')
+      .delete()
+      .eq('id_acesso', idAcesso);
+    
+    if (error) throw error;
+    
+    M.toast({html: 'Acesso excluído com sucesso!', classes: 'green'});
+    
+    if (acesso) {
+      await registrarAuditoria(
+        acesso.id_cliente,
+        'DELETE',
+        'acessos',
+        null,
+        null,
+        `Acesso excluído: ${acesso.servico}`
+      );
+      
+      await carregarAcessosCliente(acesso.id_cliente);
+    }
+    
+  } catch (error) {
+    console.error('❌ Erro ao excluir acesso:', error);
+    M.toast({html: `Erro ao excluir: ${error.message}`, classes: 'red'});
+  }
+}
+
+/**
+ * Cancela a edição e volta para a lista
+ */
+function cancelarAcesso() {
+  document.getElementById('acessoFormContainer').style.display = 'none';
+  document.getElementById('listaAcessosContainer').style.display = 'block';
+  resetAcessosForm();
+}
+
+/**
+ * Reseta o formulário de acessos
+ */
+function resetAcessosForm() {
+  document.getElementById('acessoForm').reset();
+  document.getElementById('acesso_id_acesso').value = '';
+  document.getElementById('acessoFormContainer').style.display = 'none';
+  document.getElementById('listaAcessosContainer').style.display = 'block';
+  M.updateTextFields();
+}
+
+/**
+ * Função auxiliar para escapar JavaScript em strings
+ */
+function escapeJS(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r');
+}
+
+console.log('✅ Módulo de Acessos carregado!');
+
+
 
 console.log('✅ app.js carregado!');

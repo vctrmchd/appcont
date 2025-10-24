@@ -1930,6 +1930,100 @@
   </div>
 </div>
 
+<!-- ===========================================
+MODAL DE GESTÃO DE ACESSOS
+============================================ -->
+<div id="acessosModal" class="modal modal-fixed-footer" style="max-height: 90%; width: 80%; max-width: 1200px;">
+  <div class="modal-content">
+    <h4 id="acessosClienteNome">Acessos do Cliente</h4>
+    <input type="hidden" id="acessos_id_cliente">
+
+    <!-- Container da Lista de Acessos -->
+    <div id="listaAcessosContainer">
+      <div class="right-align" style="margin-bottom: 10px;">
+        <button onclick="novoAcesso()" class="btn-large waves-effect waves-light green">
+          <i class="material-icons left">add</i>Novo Acesso
+        </button>
+      </div>
+      <div id="listaAcessos">
+        <!-- A lista de acessos será renderizada aqui -->
+        <div class="center-align grey-text" style="padding: 40px 20px;">
+          <div class="preloader-wrapper big active">
+            <div class="spinner-layer spinner-blue-only">
+              <div class="circle-clipper left">
+                <div class="circle"></div>
+              </div><div class="gap-patch">
+                <div class="circle"></div>
+              </div><div class="circle-clipper right">
+                <div class="circle"></div>
+              </div>
+            </div>
+          </div>
+          <p>Carregando acessos...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Container do Formulário de Acesso -->
+    <div id="acessoFormContainer" style="display: none;">
+      <h5 id="acessoFormTitle">Novo Acesso</h5>
+      <form id="acessoForm">
+        <input type="hidden" id="acesso_id_acesso">
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <i class="material-icons prefix">label</i>
+            <input id="acesso_servico" type="text" class="validate" required>
+            <label for="acesso_servico">Serviço *</label>
+            <span class="helper-text">Ex: Prefeitura de Santos (GISS), E-CAC, Cliniconect</span>
+          </div>
+          <div class="input-field col s12 m6">
+            <i class="material-icons prefix">category</i>
+            <input id="acesso_categoria" type="text">
+            <label for="acesso_categoria">Categoria</label>
+            <span class="helper-text">Ex: Fiscal, Contábil, Departamento Pessoal, Gestão</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12">
+            <i class="material-icons prefix">link</i>
+            <input id="acesso_link" type="url">
+            <label for="acesso_link">Link de Acesso</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12 m6">
+            <i class="material-icons prefix">person</i>
+            <input id="acesso_login" type="text">
+            <label for="acesso_login">Login</label>
+          </div>
+          <div class="input-field col s12 m6">
+            <i class="material-icons prefix">password</i>
+            <input id="acesso_senha" type="password" required>
+            <label for="acesso_senha">Senha *</label>
+          </div>
+        </div>
+        <div class="row">
+          <div class="input-field col s12">
+            <i class="material-icons prefix">notes</i>
+            <textarea id="acesso_observacoes" class="materialize-textarea"></textarea>
+            <label for="acesso_observacoes">Observações</label>
+          </div>
+        </div>
+      </form>
+      <div class="right-align">
+        <button onclick="cancelarAcesso()" class="btn-flat waves-effect">Cancelar</button>
+        <button onclick="salvarAcesso()" class="btn waves-effect waves-light blue">Salvar Acesso</button>
+      </div>
+    </div>
+
+  </div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close waves-effect waves-green btn-flat">Fechar</a>
+  </div>
+</div>
+    
+    
+
 <!-- Materialize JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
 
