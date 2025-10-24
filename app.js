@@ -3662,8 +3662,22 @@ async function copiarSenha(idAcesso) {
     
     if (error) throw error;
     
-    // Descriptografar a senha (usando atob para Base64)
-    const senhaDescriptografada = atob(acesso.senha_criptografada);
+    // Verificar se a senha existe
+    if (!acesso.senha_criptografada) {
+      M.toast({html: 'Senha não encontrada', classes: 'orange'});
+      return;
+    }
+    
+    let senhaDescriptografada;
+    
+    // Tentar descriptografar (Base64)
+    try {
+      senhaDescriptografada = atob(acesso.senha_criptografada);
+    } catch (e) {
+      // Se falhar, assumir que a senha está em texto puro
+      console.warn('⚠️ Senha não está em Base64, usando texto puro');
+      senhaDescriptografada = acesso.senha_criptografada;
+    }
     
     // Copiar para a área de transferência
     await navigator.clipboard.writeText(senhaDescriptografada);
@@ -3674,12 +3688,10 @@ async function copiarSenha(idAcesso) {
     });
     
     // Registrar na auditoria
-    await registrarAuditoria(
+    await registrarHistorico(
       document.getElementById('acessos_id_cliente').value,
-      'ACESSO_SENHA',
-      'senha_copiada',
-      null,
-      null,
+      'EDICAO',
+      { acesso_visualizado: { anterior: null, novo: `Senha copiada: ${acesso.servico}` } },
       `Senha copiada: ${acesso.servico}`
     );
     
@@ -3817,12 +3829,11 @@ async function salvarAcesso() {
       if (!error) {
         M.toast({html: 'Acesso atualizado com sucesso!', classes: 'green'});
         
-        await registrarAuditoria(
+        // CORRIGIDO: usar registrarHistorico
+        await registrarHistorico(
           idCliente,
-          'UPDATE',
-          'acessos',
-          null,
-          null,
+          'EDICAO',
+          { acesso_atualizado: { anterior: null, novo: servico } },
           `Acesso atualizado: ${servico}`
         );
       }
@@ -3839,11 +3850,10 @@ async function salvarAcesso() {
       if (!error) {
         M.toast({html: 'Acesso criado com sucesso!', classes: 'green'});
         
-        await registrarAuditoria(
+        // CORRIGIDO: usar registrarHistorico
+        await registrarHistorico(
           idCliente,
-          'INSERT',
-          'acessos',
-          null,
+          'CRIACAO',
           null,
           `Novo acesso cadastrado: ${servico}`
         );
@@ -3861,6 +3871,7 @@ async function salvarAcesso() {
     M.toast({html: `Erro ao salvar: ${error.message}`, classes: 'red'});
   }
 }
+
 
 /**
  * Exclui um acesso
@@ -3888,7 +3899,7 @@ async function excluirAcesso(idAcesso) {
     M.toast({html: 'Acesso excluído com sucesso!', classes: 'green'});
     
     if (acesso) {
-      await registrarAuditoria(
+      await registrarHistorico(
         acesso.id_cliente,
         'DELETE',
         'acessos',
