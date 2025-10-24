@@ -328,6 +328,9 @@ document.addEventListener('DOMContentLoaded', function() {
       dismissible: true,
       onCloseEnd: resetAcessosForm
     });
+    console.log('✅ Modal de acessos inicializado');
+  } else {
+    console.error('❌ Elemento acessosModal não encontrado no DOM');
   }
 
   if (trocarSenhaModalEl) {
@@ -3523,9 +3526,22 @@ async function mostrarAcessosCliente(clienteId) {
     // Carregar lista de acessos
     await carregarAcessosCliente(clienteId);
     
-    // Abrir modal
-    if (acessosModal) {
-      acessosModal.open();
+ if (appState.modals.acessos) {
+      console.log('✅ Abrindo modal de acessos');
+      appState.modals.acessos.open();
+    } else {
+      console.error('❌ Modal de acessos não está inicializado');
+      // Tentar inicializar novamente como fallback
+      const acessosModalEl = document.getElementById('acessosModal');
+      if (acessosModalEl) {
+        appState.modals.acessos = M.Modal.init(acessosModalEl, {
+          dismissible: true,
+          onCloseEnd: resetAcessosForm
+        });
+        appState.modals.acessos.open();
+      } else {
+        M.toast({html: 'Erro: Modal de acessos não encontrado', classes: 'red'});
+      }
     }
     
   } catch (error) {
